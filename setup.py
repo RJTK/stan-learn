@@ -5,7 +5,6 @@ _VERSION = "0.3.2"
 with open("README.md", "r") as readme:
     long_desc = readme.read()
 
-
 setup(
     version=_VERSION,
     name="stan-learn",
