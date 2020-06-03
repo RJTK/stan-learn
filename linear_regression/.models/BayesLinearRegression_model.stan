@@ -13,7 +13,6 @@ data {
 }
 
 transformed data {
-  matrix[N, M] normed_X;
   matrix[N, M] Q;
   matrix[M, M] R;
   matrix[M, M] R_inv;
