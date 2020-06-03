@@ -1,7 +1,7 @@
 data{
-  int<lower=0> N;  // Number of examples
-  int<lower=0> M;  // Number of features
-  int<lower=0> K;  // Number of posterior samples
+  int<lower=1> N;  // Number of examples
+  int<lower=1> M;  // Number of features
+  int<lower=1> K;  // Number of posterior samples
 
   vector[K] y0;  // intercept term
   matrix[K, M] beta;  // model coefficients

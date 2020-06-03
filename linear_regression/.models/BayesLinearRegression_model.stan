@@ -5,8 +5,8 @@
  */
 
 data {
-  int<lower=0> N;  // Number of examples
-  int<lower=0> M;  // Number of features
+  int<lower=1> N;  // Number of examples
+  int<lower=1> M;  // Number of features
 
   matrix[N, M] X;  // regressors
   vector[N] y;  // target
