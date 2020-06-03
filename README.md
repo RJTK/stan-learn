@@ -31,6 +31,6 @@ Out of sample predictions with uncertainty quantification:
 
 Here's also a regplot from the california housing data
 
-![alt tag](https://github.com/RJTK/stan-learn/blob/master/figures/California-housing_regplot.png)
+![alt tag](https://github.com/RJTK/stan-learn/blob/master/figures/California-housing_pred_regplot.png)
 
 More examples are in the `examples/` folder.
