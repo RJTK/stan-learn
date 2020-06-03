@@ -11,7 +11,7 @@ from sklearn.compose import TransformedTargetRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 
-from stanlearn.linear_regression.lr import BayesLinearRegression
+from stanlearn.linear_regression import BayesLinearRegression
 
 
 FIGURE_DIR = os.path.join(os.path.dirname(__file__),

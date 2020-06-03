@@ -1,6 +1,8 @@
 import os
 import pickle
+
 from hashlib import md5
+from copy import deepcopy
 
 import pystan
 
