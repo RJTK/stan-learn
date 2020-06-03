@@ -18,7 +18,8 @@ T-distributed output
 ```
 
 the input data needs to be scaled to unit variance before feeding it
-in.
+in.  I obviously do not claim that the following examples are
+exemplars of remarkable performance -- they are illustrations.
 
 Here's some examples on the Diabetes dataset.  Parameter (marginal)
 posteriors:
