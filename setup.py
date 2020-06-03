@@ -7,14 +7,14 @@ with open("README.md", "r") as readme:
 
 setup(
     version=_VERSION,
-    name="stan-learn",
+    name="stanlearn",
     packages=["base", "test", "examples", "linear_regression"],
     author="Ryan J. Kinnear",
     author_email="Ryan@Kinnear.ca",
     description=("Implementation of some Bayesian ML algorithms "
                  "in Stan with an sklearn-like interface."),
     long_description=long_desc,
-    url="https://github.com/RJTK/Levinson-Durbin-Recursion",
+    url="https://github.com/RJTK/stanlearn",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
