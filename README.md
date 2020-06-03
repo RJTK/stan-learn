@@ -24,14 +24,14 @@ exemplars of remarkable performance -- they are illustrations.
 Here's some examples on the Diabetes dataset.  Parameter (marginal)
 posteriors:
 
-![alt tag](https://github.com/RJTK/stan-learn/blob/master/figures/Diabetes_params.png)
+![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/Diabetes_params.png)
 
 Out of sample predictions with uncertainty quantification:
 
-![alt tag](https://github.com/RJTK/stan-learn/blob/master/figures/Diabetes_pred.png)
+![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/Diabetes_pred.png)
 
 Here's also a regplot from the california housing data
 
-![alt tag](https://github.com/RJTK/stan-learn/blob/master/figures/California-Housing_pred_regplot.png)
+![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/California-Housing_pred_regplot.png)
 
 More examples are in the `examples/` folder.

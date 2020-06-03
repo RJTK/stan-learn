@@ -15,7 +15,11 @@ from stanlearn.linear_regression import BayesLinearRegression
 
 
 FIGURE_DIR = os.path.join(os.path.dirname(__file__),
-                          "../figures/")
+                          "./figures/")
+try:
+    os.mkdir(FIGURE_DIR)
+except FileExistsError:
+    pass
 
 
 def do_example(X, y, name=None):

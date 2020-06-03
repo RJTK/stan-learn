@@ -1,14 +1,15 @@
-from distutils.core import setup
+import setuptools
+
 
 _VERSION = "0.3.2"
 
 with open("README.md", "r") as readme:
     long_desc = readme.read()
 
-setup(
+setuptools.setup(
     version=_VERSION,
     name="stanlearn",
-    packages=["base", "test", "examples", "linear_regression"],
+    packages=setuptools.find_packages(),
     author="Ryan J. Kinnear",
     author_email="Ryan@Kinnear.ca",
     description=("Implementation of some Bayesian ML algorithms "
@@ -20,5 +21,6 @@ setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
         "Topic :: Scientific/Engineering"],
-    license="LICENSE"
+    license="LICENSE",
+    include_package_data=True
 )

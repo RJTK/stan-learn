@@ -7,7 +7,7 @@ from copy import deepcopy
 import pystan
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__),
-                         "../linear_regression/.models/")
+                         "../linear_regression/stan_models/")
 
 
 class StanCacheMixin:
