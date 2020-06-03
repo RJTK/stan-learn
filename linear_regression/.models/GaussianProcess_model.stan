@@ -35,6 +35,7 @@ parameters {
   real<lower=0> alpha;  // length scale
   real<lower=0> rho;  // gp scale
   real<lower=0> sigma;  // noise level
+  real y0;  // mean offset
   vector[N] eta;  // noise to be transformed
 }
 
@@ -42,17 +43,19 @@ model {
   vector[N] f;  // Latent GP
   matrix[N, N] L;  // Cholesky factor
 
-  // Sample the parameters
+  // Sample the GP parameters
   rho ~ inv_gamma(5, 5);
   alpha ~ normal(0, 1);
   sigma ~ normal(0, 1);
+
+  y0 ~ cauchy(0, 1);
 
   L = L_cov_exp_quad(X, alpha, rho);  // Kernel
 
   // The "raw" gp noise
   eta ~ normal(0, 1);
 
-  f = L * eta;  // The GP
+  f = y0 + L * eta;  // The GP
   y ~ normal(f, sigma);  // The output
 }
 
@@ -68,7 +71,7 @@ generated quantities{
   for (i in 1:N_test)
     eta_test[i] = normal_rng(0, 1);
 
-  f_test = L_test * eta;
+  f_test = y0 + L_test * eta;
   for (i in 1:N_test)
     y_test[i] = normal_rng(f_test[i], sigma);
 }

@@ -23,6 +23,15 @@ class StanCacheMixin:
     def __init__(self):
         return
 
+    def _setup_predict_kwargs(self, data, extra_kwargs):
+        fit_kwargs = deepcopy(self.stan_fitting_kwargs)
+        fit_kwargs.update(extra_kwargs)
+        fit_kwargs["data"] = data
+        return fit_kwargs
+
+    def _get_name(self):
+        return type(self).__name__
+
     def _load_compiled_models(self):
         stan_model = self._load_compiled_model(
             self._get_name() + "_model")

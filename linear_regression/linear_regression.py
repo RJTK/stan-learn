@@ -55,15 +55,6 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
             self._X_ss = StandardScaler()
         return
 
-    def _setup_predict_kwargs(self, data, extra_kwargs):
-        fit_kwargs = deepcopy(self.stan_fitting_kwargs)
-        fit_kwargs.update(extra_kwargs)
-        fit_kwargs["data"] = data
-        return fit_kwargs
-
-    def _get_name(self):
-        return type(self).__name__
-
     def _posterior(self, X, **stan_fitting_kwargs):
         N, M = X.shape
 
