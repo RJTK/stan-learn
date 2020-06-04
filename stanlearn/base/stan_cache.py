@@ -61,7 +61,9 @@ class StanCacheMixin:
     def _compile_model(self, name):
         file_loc = StanCacheMixin._get_stan_file_loc(name)
         model_hsh = StanCacheMixin._get_file_hash(file_loc)
-        return pystan.StanModel(file=file_loc, model_name=name), model_hsh
+        model = pystan.StanModel(file=file_loc, model_name=name,
+                                 include_paths=MODEL_DIR)
+        return model, model_hsh
 
     def _save_compiled_model(self, model, name):
         file_loc = StanCacheMixin._get_model_pkl_loc(name)

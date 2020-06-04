@@ -26,7 +26,8 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         params:
           n_jobs: Number of cores to use
-          warmup: Number of burnin iterations for HMC
+          warmup: Number of warmup iterations for HMC, roughly analagous
+              to a burnin period.
           samples_per_chain: Number of samples to draw per chain
           n_chains: Number of chains (should run at least 2)
           normalize: Whether to normalize the data before feeding it
