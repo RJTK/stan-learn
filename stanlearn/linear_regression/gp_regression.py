@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,19 +9,33 @@ from sklearn.preprocessing import StandardScaler
 from stanlearn.base import StanCacheMixin
 
 
-class GaussianProcess(BaseEstimator, RegressorMixin, StanCacheMixin):
+class GaussianProcessRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
     def __init__(self, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True, max_samples_mem=500):
         BaseEstimator.__init__(self)
 
         self.stan_model, self.predict_model = self._load_compiled_models()
 
+        # The control parameters for NUTS, most are left as default
+        control = {
+            "metric": "diag_e",  # Type of mass matrix (diag_e default)
+            "stepsize_jitter": 0.05,  # Slight randomization of stepsizes
+            "adapt_engaged": True,
+            "adapt_gamma": 0.05,  # Regularization scale
+            "adapt_delta": 0.8,  # Target acceptance probability (.8 default)
+            "adapt_kappa": 0.75,  # Relaxation exponent
+            "adapt_t0": 10,  # Adaptation iteration offset
+            "adapt_init_buffer": 75,  # First fast adapt period
+            "adapt_term_buffer": 50,  # Last fast adapt period
+            "adapt_window": 25,  # First slow adapt period
+            "max_treedepth": 10,  # N_leapfrog ~ 2**max_treedepth
+            }
+
         self.stan_fitting_kwargs = {"chains": n_chains,
                                     "iter": samples_per_chain + warmup,
                                     "warmup": warmup, "init": "random",
                                     "init_r": 1.0, "n_jobs": n_jobs,
-                                    "control": {"metric": "diag_e",
-                                                "adapt_delta": 0.9}}
+                                    "control": control}
 
         self._fit_results = None
         self._fit_X = None
@@ -100,6 +112,10 @@ class GaussianProcess(BaseEstimator, RegressorMixin, StanCacheMixin):
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
         self._fit_X = X
+
+        print(self._fit_results.stansummary(
+            pars=["y0", "alpha", "rho", "nu", "sigma"],
+            probs=[0.1, 0.5, 0.9]))
         return
 
     def predict(self, X, ret_posterior=False, **stan_fitting_kwargs):
@@ -137,125 +153,3 @@ class GaussianProcess(BaseEstimator, RegressorMixin, StanCacheMixin):
         if show:
             plt.show()
         return fig, ax
-
-
-if __name__ == "__main__":
-    N = 10
-    N_test = 5
-    M = 2
-
-    X_train = np.random.normal(size=(N, M))
-    X_test = np.random.normal(size=(N, M))
-    y_train = 22 + (0.5 * X_train[:, 0]**2 + + 0.3 * X_train[:, 1] + 
-                    0.2 * np.random.normal(size=(N)))
-    y_test = 22 + (0.5 * X_test[:, 0]**2 + 0.3 * X_test[:, 1]).ravel()
-
-    # Test the noise robustness
-    # y_train[12] = 66
-    # y_train[19] = -91
-
-    gp = GaussianProcess(warmup=1000, samples_per_chain=1000)
-    gp.fit(X_train, y_train[:, None])
-    # alpha, rho, sigma, y0 = gp._get_param_posterior()
-    y_train_hat, y_train_post = gp.predict(X_train, ret_posterior=True)
-    y_test_hat, y_test_post = gp.predict(X_test, ret_posterior=True)
-
-    x = X_train[:, 0].ravel()
-    asort = np.argsort(x)
-    plt.plot(x[asort], y_train_post[:, asort].T, color="m", alpha=0.2,
-             linewidth=0.5)
-    plt.plot(x[asort], y_train[asort], label="train", color="b", marker="o")
-    plt.plot(x[asort], y_train_hat[asort], label="hat", color="r", marker="o")
-    plt.ylim(-100, 100)
-    plt.legend()
-    plt.show()
-
-    x = X_test[:, 0].ravel()
-    asort = np.argsort(x)
-    plt.plot(x[asort], y_test_post[:, asort].T, color="m", alpha=0.2,
-             linewidth=0.5)
-    plt.plot(x[asort], y_test[asort], label="test", color="b", marker="o")
-    plt.plot(x[asort], y_test_hat[asort], label="hat", color="r", marker="o")
-    plt.ylim(-100, 100)
-    plt.legend()
-    plt.show()
-
-    from sklearn.model_selection import train_test_split
-    from sklearn.datasets import load_diabetes
-    from sklearn.metrics import r2_score
-    from sklearn.decomposition import PCA
-
-    X, y = load_diabetes(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-    y_train = y_train[:, None]
-    gp = GaussianProcess(warmup=1000, samples_per_chain=1000)
-    gp.fit(X_train, y_train)
-
-    # fit_results = gp._fit_results
-
-    gp = GaussianProcess(warmup=2000, samples_per_chain=1000,
-                         normalize=True)
-    gp._fit_results = fit_results
-    gp._y_ss = StandardScaler().fit(y_train)
-    gp._X_ss = StandardScaler().fit(X_train)
-    gp._fit_X = X_train
-
-    gp.plot_posterior_params(show=True)
-
-    y_train_hat, y_train_post = gp.predict(X_train, ret_posterior=True)
-    y_test_hat, y_test_post = gp.predict(X_test, ret_posterior=True)
-
-    print("r2_train: {}".format(r2_score(y_train, y_train_hat)))
-    print("r2_test: {}".format(r2_score(y_test, y_test_hat)))
-
-    sns.regplot(y_train, y_train_hat)
-    plt.title("PPC regplot")
-    plt.show()
-
-    sns.regplot(y_test, y_test_hat)
-    plt.title("Test regplot")
-    plt.show()
-
-    # This is a terrible way to visualize
-    pca = PCA(n_components=1).fit(X_train)
-    x = pca.transform(X_train).ravel()
-    asort = np.argsort(x)
-
-    plt.plot(x[asort], y_train_post.T[asort], color="m", alpha=0.2,
-             linewidth=0.5)
-    plt.plot(x[asort], y_train[asort], label="train", color="b",
-             linewidth=2)
-    plt.plot(x[asort], y_train_hat[asort], label="hat", color="r",
-             linewidth=2)
-    plt.legend()
-    plt.show()
-
-    # # asort = np.argsort(X_train.ravel())
-    # # plt.plot(X_train.ravel()[asort], y_train[asort])
-    # # plt.show()
-
-    # model = pystan.StanModel("./stan_models/GaussianProcess_model.stan",
-    #                          include_paths="./stan_models/")
-    # fit_model = model.sampling(chains=4, warmup=1000, data=data,
-    #                            iter=2000)
-    # df = fit_model.to_dataframe()
-    # y_hat = df.loc[:, [f"y_test[{i}]" for i in range(1, N + 1)]].to_numpy()
-
-    # pars = df.loc[:, ["alpha", "rho", "sigma"]]
-    # pars = pars.melt()
-    # sns.boxplot(data=pars, x="variable", y="value")
-    # plt.show()
-
-    # x = X_test.ravel()
-    # x_train = X_train.ravel()
-    # asort = np.argsort(x)
-    # asort_train = np.argsort(x_train)
-
-    # plt.plot(x[asort], y_hat[:, asort].T, linewidth=0.25, color="m", alpha=0.25)
-    # plt.plot(x[asort], np.mean(y_hat, axis=0)[asort], linewidth=2, color="r",
-    #          alpha=0.75, marker="o")
-    # plt.plot(x[asort], y_test[asort], linewidth=2, color="b",
-    #          alpha=0.75, marker="o")
-    # plt.plot(x_train[asort_train], y_train[asort_train], linewidth=2, color="g",
-    #          alpha=0.75, marker="o")
-    # plt.show()

@@ -17,7 +17,7 @@ parameters {
   real<lower=0> rho;  // gp scale
   real<lower=0> sigma;  // noise level
   vector[N] eta;  // noise to be transformed
-  real<lower=0> nu;  // T noise dof
+  real<lower=2> nu;  // T noise dof
   real y0;  // mean offset
 }
 
@@ -36,7 +36,8 @@ model {
   rho ~ inv_gamma(3, 5);
   alpha ~ normal(0, 1);
   sigma ~ normal(0, 1);
-  nu ~ cauchy(0, 1);
+  // nu ~ student_t(1.5, 5, 5);
+  nu ~ lognormal(1, sqrt(5));
 
   // An offset
   // y0 ~ cauchy(0, 1);
