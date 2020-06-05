@@ -26,11 +26,11 @@ posteriors:
 
 ![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/Diabetes_params.png)
 
-Out of sample predictions with uncertainty quantification:
+Out of sample predictions with uncertainty quantification (Linear Regression)
 
 ![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/Diabetes_pred.png)
 
-Here's also a regplot from the california housing data
+Here's also a regplot from the california housing data (linear regression)
 
 ![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/California-Housing_pred_regplot.png)
 
