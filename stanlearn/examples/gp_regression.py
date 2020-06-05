@@ -59,8 +59,8 @@ if __name__ == "__main__":
     gp.fit(X_train, y_train)
 
     fig, ax = gp.plot_posterior_params(show=False)
-    fig.savefig("../../figures/gp_Diabetes_params.png")
-    fig.savefig("../../figures/gp_Diabetes_params.pdf")
+    fig.savefig("./figures/gp_Diabetes_params.png")
+    fig.savefig("./figures/gp_Diabetes_params.pdf")
     plt.show()
 
     y_train_hat, y_train_post = gp.predict(X_train, ret_posterior=True)
@@ -92,6 +92,6 @@ if __name__ == "__main__":
     plt.title("(Sorted) Test Predictions $(R^2 = {:0.3f})$".format(r2_test))
     plt.xlabel("Sorted Index")
     plt.ylabel("$y$ Value")
-    plt.savefig("../../figures/gp_Diabetes_pred.png")
-    plt.savefig("../../figures/gp_Diabetes_pred.pdf")
+    plt.savefig("./figures/gp_Diabetes_pred.png")
+    plt.savefig("./figures/gp_Diabetes_pred.pdf")
     plt.show()
