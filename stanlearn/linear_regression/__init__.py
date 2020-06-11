@@ -1,1 +1,2 @@
-from .linear_regression import *
+from .linear_regression import BayesLinearRegression
+from .gp_regression import GaussianProcessRegression

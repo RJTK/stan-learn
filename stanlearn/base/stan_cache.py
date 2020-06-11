@@ -1,13 +1,9 @@
-import os
 import pickle
 
 from hashlib import md5
 from copy import deepcopy
 
 import pystan
-
-MODEL_DIR = os.path.join(os.path.dirname(__file__),
-                         "../linear_regression/stan_models/")
 
 
 class StanCacheMixin:
@@ -16,14 +12,15 @@ class StanCacheMixin:
             hsh = md5(f.read().encode("utf-8")).hexdigest()
         return hsh
 
-    def _get_stan_file_loc(name):
-        return MODEL_DIR + name + ".stan"
-
-    def _get_model_pkl_loc(name):
-        return MODEL_DIR + name + ".pkl"
-
-    def __init__(self):
+    def __init__(self, model_dir):
+        self.model_dir = model_dir
         return
+
+    def _get_stan_file_loc(self, name):
+        return self.model_dir + name + ".stan"
+
+    def _get_model_pkl_loc(self, name):
+        return self.model_dir + name + ".pkl"
 
     def _setup_predict_kwargs(self, data, extra_kwargs):
         fit_kwargs = deepcopy(self.stan_fitting_kwargs)
@@ -43,7 +40,7 @@ class StanCacheMixin:
 
     def _load_compiled_model(self, name):
         try:
-            with open(MODEL_DIR + name + ".pkl", "rb") as f:
+            with open(self.model_dir + name + ".pkl", "rb") as f:
                 _model = pickle.load(f)
                 model = _model["model"]
                 model_hsh = _model["md5"]
@@ -51,7 +48,7 @@ class StanCacheMixin:
             model, model_hsh = self._compile_model(name)
         else:
             file_hsh = StanCacheMixin._get_file_hash(
-                StanCacheMixin._get_stan_file_loc(name))
+                self._get_stan_file_loc(name))
             if model_hsh != file_hsh:
                 model, model_hsh = self._compile_model(name)
         _model = {"model": model, "md5": model_hsh}
@@ -59,14 +56,14 @@ class StanCacheMixin:
         return model
 
     def _compile_model(self, name):
-        file_loc = StanCacheMixin._get_stan_file_loc(name)
+        file_loc = self._get_stan_file_loc(name)
         model_hsh = StanCacheMixin._get_file_hash(file_loc)
         model = pystan.StanModel(file=file_loc, model_name=name,
-                                 include_paths=MODEL_DIR)
+                                 include_paths=self.model_dir)
         return model, model_hsh
 
     def _save_compiled_model(self, model, name):
-        file_loc = StanCacheMixin._get_model_pkl_loc(name)
+        file_loc = self._get_model_pkl_loc(name)
         with open(file_loc, "wb") as f:
             pickle.dump(model, f)
         return

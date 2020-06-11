@@ -1,4 +1,5 @@
 from copy import deepcopy
+import os
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -9,6 +10,9 @@ from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 
 from stanlearn.base import StanCacheMixin
+
+MODEL_DIR = os.path.join(os.path.dirname(__file__),
+                         "./stan_models/")
 
 
 class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
@@ -37,6 +41,7 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
               memory when sampling the posterior predictive.
         """
         BaseEstimator.__init__(self)
+        StanCacheMixin.__init__(self, MODEL_DIR)
 
         self.stan_model, self.predict_model = self._load_compiled_models()
 

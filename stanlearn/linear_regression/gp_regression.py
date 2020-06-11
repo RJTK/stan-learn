@@ -1,3 +1,4 @@
+import os
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,11 +9,15 @@ from sklearn.preprocessing import StandardScaler
 
 from stanlearn.base import StanCacheMixin
 
+MODEL_DIR = os.path.join(os.path.dirname(__file__),
+                         "stan_models/")
+
 
 class GaussianProcessRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
     def __init__(self, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True, max_samples_mem=500):
         BaseEstimator.__init__(self)
+        StanCacheMixin.__init__(self, MODEL_DIR)
 
         self.stan_model, self.predict_model = self._load_compiled_models()
 
