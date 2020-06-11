@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 
 import seaborn as sns
@@ -10,11 +11,18 @@ from sklearn.preprocessing import StandardScaler
 
 from stanlearn.base import StanCacheMixin
 
+try:
+    MODEL_DIR = os.path.join(os.path.dirname(__file__),
+                             "./stan_models/")
+except NameError:  # no __file__ when interactive
+    MODEL_DIR = "./stan_models/"
+
 
 class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def __init__(self, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True, max_samples_mem=500):
         BaseEstimator.__init__(self)
+        StanCacheMixin.__init__(self, MODEL_DIR)
 
         self.stan_model, self.predict_model = self._load_compiled_models()
 
@@ -68,7 +76,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         df = self._fit_results.to_dataframe()
         return
 
-    def fit(self, X, y, sample_weight=None, **stan_fitting_kwargs):
+    def fit(self, X, y=None, sample_weight=None, **stan_fitting_kwargs):
         """
         "Fit" the model, that is, sample from the posterior.
 
@@ -81,13 +89,15 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         if sample_weight is not None:
             raise NotImplementedError("sampling weighting is not implemented.")
         N, M = X.shape
+        if M > 1:
+            raise NotImplementedError
 
         if self.normalize:
-            y = self._y_ss.fit_transform(y)
-            X = self._X_ss.fit_transform(X)
+            X = self._y_ss.fit_transform(X)
 
-        y = y.ravel()
-        data = {"N": N, "M": M, "X": X, "y": y}
+        X = X.ravel()
+        # data = {"N": N, "M": M, "X": X, "y": y}
+        data = {"N": N, "y": X}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
@@ -140,4 +150,22 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
 
 if __name__ == "__main__":
-    ar = BayesAR()
+    ar = BayesAR(normalize=False)
+    T = 100
+    v = 0.25 * np.random.normal(size=T)
+    y = np.array(v)
+    b = 0.6
+
+    for t in range(1, T):
+        y[t] = b * y[t - 1] + v[t]
+
+    y = y[:, None]
+    ar.fit(y)
+
+    y_hat = ar._fit_results.extract("y_hat")["y_hat"]
+    plt.plot(y_hat[::10].T, linewidth=0.5, color="m", alpha=0.25)
+    plt.plot(y.ravel(), linewidth=2.0, color="b", alpha=0.8, label="y")
+    plt.plot(np.mean(y_hat, axis=0), linewidth=2.0, color="r",
+             alpha=0.8, label="y\_hat")
+    plt.legend()
+    plt.show()

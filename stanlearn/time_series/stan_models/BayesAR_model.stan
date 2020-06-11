@@ -8,7 +8,7 @@ functions {
      * Maps a vector of p reflection coefficients g (|g| < 1) to a
      * stable sequence b of AR coefficients.
      */
-    int p = dims(g);  // Model order
+    int p = dims(g)[1];  // Model order
     vector[p + 1] b;  // AR Coefficients
     vector[p + 1] b_cpy;  // Memory
 
@@ -55,8 +55,13 @@ model {
   y0 ~ normal(0, 1);
 
   y[1] ~ normal(mu + y0, sigma);
-  y[2:N] ~ normal(mu + b * y[1:N - 1], sigma);
+  y[2:N] ~ normal(mu + b[1] * y[1:N - 1], sigma);
 }
 
 generated quantities {
+  vector[N] y_hat;
+
+  y_hat[1] = normal_rng(mu + y0, sigma);
+  for (t in 2:N)
+    y_hat[t] = normal_rng(mu + b[1] * y[t - 1], sigma);
 }
