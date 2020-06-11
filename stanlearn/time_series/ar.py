@@ -38,7 +38,6 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         self.max_samples_mem = max_samples_mem
 
         if normalize:
-            self._y_ss = StandardScaler(with_mean=False)
             self._X_ss = StandardScaler()
         return
 
@@ -76,7 +75,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         df = self._fit_results.to_dataframe()
         return
 
-    def fit(self, X, y=None, sample_weight=None, **stan_fitting_kwargs):
+    def fit(self, X, y=None, p=1, sample_weight=None, **stan_fitting_kwargs):
         """
         "Fit" the model, that is, sample from the posterior.
 
@@ -88,16 +87,16 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         """
         if sample_weight is not None:
             raise NotImplementedError("sampling weighting is not implemented.")
-        N, M = X.shape
-        if M > 1:
+        T, n = X.shape
+        if n > 1:
             raise NotImplementedError
 
         if self.normalize:
-            X = self._y_ss.fit_transform(X)
+            X = self._X_ss.fit_transform(X)
 
         X = X.ravel()
         # data = {"N": N, "M": M, "X": X, "y": y}
-        data = {"N": N, "y": X}
+        data = {"T": T, "p": p, "y": X}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
@@ -154,18 +153,23 @@ if __name__ == "__main__":
     T = 100
     v = 0.25 * np.random.normal(size=T)
     y = np.array(v)
-    b = 0.6
+    b1 = 0.6
+    b2 = -0.8
 
-    for t in range(1, T):
-        y[t] = b * y[t - 1] + v[t]
+    for t in range(2, T):
+        y[t] = b1 * y[t - 1] + b2 * y[t - 2] + v[t]
 
-    y = y[:, None]
-    ar.fit(y)
+    y = y.reshape(-1, 1)
+    ar.fit(y, p=8)
 
-    y_hat = ar._fit_results.extract("y_hat")["y_hat"]
-    plt.plot(y_hat[::10].T, linewidth=0.5, color="m", alpha=0.25)
+    y_ppc = ar._fit_results.extract("y_ppc")["y_ppc"]
+
+    plt.plot(y_ppc[::10].T, linewidth=0.5, color="m", alpha=0.25)
     plt.plot(y.ravel(), linewidth=2.0, color="b", alpha=0.8, label="y")
-    plt.plot(np.mean(y_hat, axis=0), linewidth=2.0, color="r",
-             alpha=0.8, label="y\_hat")
+    plt.plot(np.mean(y_ppc, axis=0), linewidth=2.0, color="r",
+             alpha=0.8, label="y\_ppc")
+    plt.xlabel("$t$")
+    plt.ylabel("$y$")
+    plt.title("AR(p) model PPC")
     plt.legend()
     plt.show()

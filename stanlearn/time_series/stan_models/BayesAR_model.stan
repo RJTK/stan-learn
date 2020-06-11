@@ -26,8 +26,9 @@ functions {
 }
 
 data {
-  int<lower=1> N;  // Number of examples
-  vector[N] y;  // the data series y(t)
+  int<lower=1> T;  // Number of examples
+  int<lower=1> p;  // The lag
+  vector[T] y;  // the data series y(t)
 }
 
 transformed data {
@@ -35,14 +36,14 @@ transformed data {
 
 parameters {
   real mu;  // Mean value
-  real y0;  // Initial value
-  vector<lower=-1, upper=1>[1] g;  // Reflection coefficients
+  real y0[p];  // Initial values
+  vector<lower=-1, upper=1>[p] g;  // Reflection coefficients
   real<lower=0> sigma;  // noise level
   real<lower=0> lam;  // variance of reflection coefficients
 }
 
 transformed parameters {
-  vector[1] b;  // AR Coefficients
+  vector[p] b;  // AR Coefficients
 
   b = step_up_recursion(g);
 }
@@ -54,14 +55,27 @@ model {
   mu ~ normal(0, 1);
   y0 ~ normal(0, 1);
 
-  y[1] ~ normal(mu + y0, sigma);
-  y[2:N] ~ normal(mu + b[1] * y[1:N - 1], sigma);
+  for(t in 1:p)
+    y[t] ~ normal(mu + y0[t], sigma);
+
+  for(t in p + 1:T){
+    real y_hat = 0;
+    for(tau in 1:p)
+      y_hat += b[tau] * y[t - tau];
+    y[t] ~ normal(mu + y_hat, sigma);
+  }
 }
 
 generated quantities {
-  vector[N] y_hat;
+  vector[T] y_ppc;
 
-  y_hat[1] = normal_rng(mu + y0, sigma);
-  for (t in 2:N)
-    y_hat[t] = normal_rng(mu + b[1] * y[t - 1], sigma);
+  for(t in 1:p)
+    y_ppc[t] = normal_rng(mu + y0[t], sigma);
+
+  for(t in p + 1:T){
+    real y_hat = 0;
+    for(tau in 1:p)
+      y_hat += b[tau] * y[t - tau];
+    y_ppc[t] = normal_rng(mu + y_hat, sigma);
+  }
 }
