@@ -1,10 +1,23 @@
 import seaborn
+import os
 import matplotlib.pyplot as plt
 
 import numpy as np
 from numpy.polynomial.polynomial import polyroots
 
 from stanlearn.time_series import BayesAR
+
+try:
+    FIGURE_DIR = os.path.join(os.path.dirname(__file__),
+                              "./figures/")
+except NameError:  # no __file__ when interactive
+    FIGURE_DIR = "./figures/"
+
+try:
+    os.mkdir(FIGURE_DIR)
+except FileExistsError:
+    pass
+
 
 def basic_example():
     p = 3  # Misspecify p
@@ -31,8 +44,8 @@ def basic_example():
     plt.ylabel("$y$")
     plt.title("AR(p) model PPC")
     plt.legend()
-    plt.savefig("./figures/time_series_ppc.png")
-    plt.savefig("./figures/time_series_ppc.pdf")
+    plt.savefig(FIGURE_DIR + "time_series_ppc.png")
+    plt.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
     true_roots = polyroots(np.append(
@@ -42,8 +55,8 @@ def basic_example():
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="r")
     axes[1].legend()
-    fig.savefig("./figures/time_series_param_posterior.png")
-    fig.savefig("./figures/time_series_param_posterior.pdf")
+    fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
+    fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     plt.show()
 
     return

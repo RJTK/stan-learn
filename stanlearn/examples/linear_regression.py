@@ -13,9 +13,12 @@ from sklearn.model_selection import train_test_split
 
 from stanlearn.linear_regression import BayesLinearRegression
 
+try:
+    FIGURE_DIR = os.path.join(os.path.dirname(__file__),
+                              "./figures/")
+except NameError:  # no __file__ when interactive
+    FIGURE_DIR = "./figures/"
 
-FIGURE_DIR = os.path.join(os.path.dirname(__file__),
-                          "./figures/")
 try:
     os.mkdir(FIGURE_DIR)
 except FileExistsError:

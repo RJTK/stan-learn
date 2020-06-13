@@ -1,12 +1,25 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_diabetes
 from sklearn.metrics import r2_score
 
 from stanlearn.linear_regression import GaussianProcessRegression
+
+
+try:
+    FIGURE_DIR = os.path.join(os.path.dirname(__file__),
+                              "./figures/")
+except NameError:  # no __file__ when interactive
+    FIGURE_DIR = "./figures/"
+
+try:
+    os.mkdir(FIGURE_DIR)
+except FileExistsError:
+    pass
 
 
 if __name__ == "__main__":
@@ -59,8 +72,8 @@ if __name__ == "__main__":
     gp.fit(X_train, y_train)
 
     fig, ax = gp.plot_posterior_params(show=False)
-    fig.savefig("./figures/gp_Diabetes_params.png")
-    fig.savefig("./figures/gp_Diabetes_params.pdf")
+    fig.savefig(FIGURE_DIR + "gp_Diabetes_params.png")
+    fig.savefig(FIGURE_DIR + "gp_Diabetes_params.pdf")
     plt.show()
 
     y_train_hat, y_train_post = gp.predict(X_train, ret_posterior=True)
@@ -92,6 +105,6 @@ if __name__ == "__main__":
     plt.title("(Sorted) Test Predictions $(R^2 = {:0.3f})$".format(r2_test))
     plt.xlabel("Sorted Index")
     plt.ylabel("$y$ Value")
-    plt.savefig("./figures/gp_Diabetes_pred.png")
-    plt.savefig("./figures/gp_Diabetes_pred.pdf")
+    plt.savefig(FIGURE_DIR + "gp_Diabetes_pred.png")
+    plt.savefig(FIGURE_DIR + "gp_Diabetes_pred.pdf")
     plt.show()
