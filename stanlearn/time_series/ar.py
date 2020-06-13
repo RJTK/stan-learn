@@ -103,11 +103,14 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         param_df = self._fit_results.to_dataframe()
         p = self.p
 
-        params = (["sigma", "nu_beta", "mu"] +
-                  [f"b[{tau}]"for tau in range(1, p + 1)])
+        b_params = [f"b[{tau}]"for tau in range(1, p + 1)]
+        b_params_tex = [f"$b_{tau}$"for tau in range(1, p + 1)]
+
+        roots = self._compute_roots(param_df.loc[:, b_params].to_numpy())
+
+        params = (["sigma", "nu_beta", "mu", "r", "lam"] + b_params)
         names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
-                  "$\\mu_y$"] +
-                 [f"$b_{tau}$" for tau in range(1, p + 1)])
+                  "$\\mu_y$", "$r$", "$\\lambda$"] + b_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
         param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
@@ -119,10 +122,11 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         ax = axes.ravel()
 
         # Plot parameters
-        fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + \\sum_{\\tau = 1}^p "
-                     "b_\\tau y(t - \\tau), \\sigma^2); "
-                     "\\frac{1}{2}(1 + \Gamma_\\tau) \\sim "
-                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
+        fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + rt + "
+                     "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau), \\sigma^2); "
+                     "\\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
+                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta); "
+                     "r \\sim \mathcal{N}(0, \\lambda^2)$")
 
         ax[0].set_title("Parameter Posteriors")
         sns.boxplot(
@@ -132,13 +136,11 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             x="Parameter", y="Posterior Samples", ax=ax[0])
 
         # Z-plot
-        roots = self._compute_roots(param_df.iloc[:, 3:].to_numpy())
-
         uc = patches.Circle((0, 0), radius=1, fill=False,
                             color='black', linestyle='dashed')
         ax[1].add_patch(uc)
-        ax[1].scatter(roots.real, roots.imag, color="#0072B2",
-                      marker="x", alpha=0.2)
+        ax[1].scatter(roots.real, roots.imag, color="#882255",
+                      marker="x", alpha=0.1)
         ax[1].set_title("System Poles")
         ax[1].set_xlabel("Re")
         ax[1].set_ylabel("Im")
