@@ -1,5 +1,4 @@
 import os
-from copy import deepcopy
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -9,7 +8,6 @@ import numpy as np
 from numpy.polynomial.polynomial import polyroots
 
 from sklearn.base import RegressorMixin, BaseEstimator
-from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 
 from stanlearn.base import StanCacheMixin
@@ -45,47 +43,12 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             self._X_ss = StandardScaler()
         return
 
-    def _posterior(self, X, **stan_fitting_kwargs):
-        N, M = X.shape
-
-        if self.normalize:
-            X = self._X_ss.transform(X)
-
-        # y0, beta, sigma, nu = self._get_param_posterior()
-
-        mem_samples = len(y0) * 8 * N / 1e6
-        ss = int(1 + (mem_samples // self.max_samples_mem))  # Subsample
-        K = len(y0[::ss])
-
-        data = {"N": N, "M": M, "K": K}
-        fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
-        fit_kwargs["iter"] = 1
-        fit_kwargs["chains"] = 1
-
-        predictions = self.predict_model.sampling(**fit_kwargs,
-                                                  algorithm="Fixed_param")
-        y_samples = predictions.extract("y")["y"][0, ...]
-        y_hat = predictions.extract("y_hat")["y_hat"].ravel()
-
-        if self.normalize:
-            y_samples = np.vstack([self._y_ss.inverse_transform(y_s)
-                                   for y_s in y_samples])
-            y_hat = self._y_ss.inverse_transform(y_hat)
-        return y_hat, y_samples
-
-    def _get_aram_posterior(self):
-        if self._fit_results is None:
-            raise NotFittedError("Model isn't fit!")
-        df = self._fit_results.to_dataframe()
-        return
-
     def fit(self, X, y=None, sample_weight=None, **stan_fitting_kwargs):
         """
         "Fit" the model, that is, sample from the posterior.
 
         params:
-            X (n_examples, m_features): Regressors
-            y (n_examples): The targets
+            X (n_examples, m_features): Signal to fit, T x 1
             sample_weight: NotImplemented
             stan_fitting_kwargs: To be passed to pystan's .sampling method
         """
@@ -99,7 +62,6 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             X = self._X_ss.fit_transform(X)
 
         X = X.ravel()
-        # data = {"N": N, "M": M, "X": X, "y": y}
         data = {"T": T, "p": self.p, "y": X}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
@@ -141,12 +103,15 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         param_df = self._fit_results.to_dataframe()
         p = self.p
 
-        params = (["sigma", "lam", "mu"] +
+        params = (["sigma", "nu_beta", "mu"] +
                   [f"b[{tau}]"for tau in range(1, p + 1)])
-        names = (["$\sigma$", "$\lambda$", "$\mu$"] + 
-                  [f"$b_{tau}$" for tau in range(1, p + 1)])
+        names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
+                  "$\\mu_y$"] +
+                 [f"$b_{tau}$" for tau in range(1, p + 1)])
         rename = {frm: to for frm, to in zip(params, names)}
 
+        param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
+        param_df.loc[:, "nu_beta"] = param_df.loc[:, "sigma"]**2
         param_df = param_df.loc[:, params]\
             .rename(rename, axis=1)
 
@@ -154,9 +119,10 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         ax = axes.ravel()
 
         # Plot parameters
-        fig.suptitle("$y(t) \sim \mathcal{N}(\mu + \sum_{\\tau = 1}^p "
-                     "b_\\tau y(t - \\tau), \sigma^2); "
-                     "b_\\tau \sim \mathcal{N}(0, \lambda^2)$")
+        fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + \\sum_{\\tau = 1}^p "
+                     "b_\\tau y(t - \\tau), \\sigma^2); "
+                     "\\frac{1}{2}(1 + \Gamma_\\tau) \\sim "
+                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
 
         ax[0].set_title("Parameter Posteriors")
         sns.boxplot(
@@ -174,6 +140,8 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         ax[1].scatter(roots.real, roots.imag, color="#0072B2",
                       marker="x", alpha=0.2)
         ax[1].set_title("System Poles")
+        ax[1].set_xlabel("Re")
+        ax[1].set_ylabel("Im")
 
         if show:
             plt.show()

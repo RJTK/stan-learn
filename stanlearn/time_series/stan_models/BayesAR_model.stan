@@ -37,23 +37,37 @@ transformed data {
 parameters {
   real mu;  // Mean value
   real y0[p];  // Initial values
-  vector<lower=-1, upper=1>[p] g;  // Reflection coefficients
+  vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
   real<lower=0> sigma;  // noise level
-  real<lower=0> lam;  // variance of reflection coefficients
+
+  vector<lower=0, upper=1>[p] mu_beta;  // Mean vector for g_beta
+  real<lower=0> nu_beta;  // pseudo-samples on g_beta
 }
 
 transformed parameters {
   vector[p] b;  // AR Coefficients
+  vector<lower=0>[p] alpha;  // Params for beta prior on g
+  vector<lower=0>[p] beta;
+  vector<lower=-1, upper=1>[p] g;  // Reflection coefficients
 
-  b = step_up(g);
+  g = 2 * g_beta - 1;  // transform to (-1, 1)
+  alpha = mu_beta * nu_beta;
+  beta = (1 - mu_beta) * nu_beta;
+
+  b = step_up(g);  // Compute the actual AR coefficients
 }
 
 model {
+  // Noise level in the signal
   sigma ~ normal(0, 5);
-  lam ~ normal(0, 2);
-  g ~ normal(0, lam^2);
-  mu ~ normal(0, 1);
-  y0 ~ normal(0, 1);
+
+  // Priors for the reflection coefficients
+  mu_beta ~ uniform(0, 1);  // A p-vector
+  nu_beta ~ student_t(3, 1, 5);  // A scalar
+  g_beta ~ beta(alpha, beta);  // in (0, 1)
+
+  mu ~ normal(0, 1);  // A mean offset
+  y0 ~ normal(0, 1);  // The initial values
 
   for(t in 1:p)
     y[t] ~ normal(mu + y0[t], sigma^2);
