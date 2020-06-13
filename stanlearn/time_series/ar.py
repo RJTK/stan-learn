@@ -92,8 +92,32 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         """
         A built in PPC for every fit.
         """
-        y_ppc = self._fit_results.extract("y_ppc")["y_ppc"]
-        return y_ppc
+        return self._fit_results.extract("y_ppc")["y_ppc"]
+
+    def get_trend(self):
+        return self._fit_results.extract("trend")["trend"]
+
+    def plot_ppc(self, y, show=False):
+        fig, ax = plt.subplots(1, 1)
+        y_trend = self.get_trend()
+        y_ppc = self.get_ppc()
+
+        ax.plot(y_trend.T, linewidth=0.5, color="#88CCEE", alpha=0.1)
+        ax.plot(y_ppc.T, linewidth=0.5, color="#CC6677", alpha=0.1)
+        ax.plot(y.ravel(), linewidth=2.0, color="#117733", alpha=0.8,
+                label="y")
+        ax.plot(np.mean(y_ppc, axis=0), linewidth=2.0, color="#882255",
+                alpha=0.8, label="y\_ppc")
+        plt.plot([], [], linewidth=2, color="#88CCEE", label="trend")
+        
+        ax.set_xlabel("$t$")
+        ax.set_ylabel("$y$")
+        ax.set_title("AR(p) model PPC")
+        ax.legend(loc="upper right")
+
+        if show:
+            plt.show()
+        return fig, ax
 
     def plot_posterior_params(self, show=False):
         """
