@@ -33,6 +33,9 @@ Out of sample predictions with uncertainty quantification (Linear Regression)
 Another interesting model is VAR(p) models.  So far, I have developed
 an AR(p) model, with a parameterization in terms of the reflection
 coefficients (see /RJTK/levinson-durbin-recursion or any book on
-signal processing).  This guarantees the stability of every posterior sample.
+signal processing).  This guarantees the stability of every posterior
+sample.
 
-![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/Diabetes_pred.png)
+![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/time_series_param_posterior.png)
+
+![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/time_series_ppc.png)
