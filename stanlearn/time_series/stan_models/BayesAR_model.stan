@@ -23,6 +23,49 @@ functions {
 
     return -b;
   }
+
+  vector reverse(vector x){
+    // Isn't this built in?  stanc2.23 doesn't recognize it.
+    int p = dims(x)[1];
+    vector[p] x_rev;
+    for (tau in 1:p)
+      x_rev[tau] = x[p - tau + 1];
+    return x_rev;
+  }
+
+  real ar_model_lpdf(vector y, vector y0, vector b, real mu, real sigma){
+    int p = dims(b)[1];
+    int T = dims(y)[1];
+    real lpdf_ret = 0.0;
+    vector[p] b_rev = reverse(b);
+
+    for(t in 1:p)
+      lpdf_ret += normal_lpdf(y[t] | mu + y0[t], sigma^2);
+
+    for(t in p + 1:T){
+      real y_hat = 0;
+      y_hat = dot_product(b_rev, y[t - p:t - 1]);
+      lpdf_ret += normal_lpdf(y[t] | mu + y_hat, sigma^2);
+    }
+    return lpdf_ret;
+  }
+
+  vector ar_model_rng(vector y, vector y0, vector b, real mu, real sigma){
+    int p = dims(b)[1];
+    int T = dims(y)[1];
+    vector[T] y_1s; // 1 step ahead
+    vector[p] b_rev = reverse(b);
+
+    for(t in 1:p)
+      y_1s[t] = normal_rng(mu + y0[t], sigma^2);
+
+    for(t in p + 1:T){
+      real y_hat = 0;
+      y_hat = dot_product(b_rev, y[t - p:t - 1]);
+      y_1s[t] = normal_rng(mu + y_hat, sigma^2);
+    }
+    return y_1s;
+  }
 }
 
 data {
@@ -36,7 +79,7 @@ transformed data {
 
 parameters {
   real mu;  // Mean value
-  real y0[p];  // Initial values
+  vector[p] y0;  // Initial values
   vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
   real<lower=0> sigma;  // noise level
 
@@ -67,29 +110,11 @@ model {
   g_beta ~ beta(alpha, beta);  // in (0, 1)
 
   mu ~ normal(0, 1);  // A mean offset
-  y0 ~ normal(0, 1);  // The initial values
-
-  for(t in 1:p)
-    y[t] ~ normal(mu + y0[t], sigma^2);
-
-  for(t in p + 1:T){
-    real y_hat = 0;
-    for(tau in 1:p)
-      y_hat += b[tau] * y[t - tau];
-    y[t] ~ normal(mu + y_hat, sigma^2);
-  }
+  y0 ~ normal(mu, sigma^2);
+  y ~ ar_model(y0, b, mu, sigma);
 }
 
 generated quantities {
   vector[T] y_ppc;
-
-  for(t in 1:p)
-    y_ppc[t] = normal_rng(mu + y0[t], sigma^2);
-
-  for(t in p + 1:T){
-    real y_hat = 0;
-    for(tau in 1:p)
-      y_hat += b[tau] * y[t - tau];
-    y_ppc[t] = normal_rng(mu + y_hat, sigma^2);
-  }
+  y_ppc = ar_model_rng(y, y0, b, mu, sigma);
 }
