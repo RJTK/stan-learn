@@ -30,8 +30,9 @@ Out of sample predictions with uncertainty quantification (Linear Regression)
 
 ![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/Diabetes_pred.png)
 
-Here's also a regplot from the california housing data (linear regression)
+Another interesting model is VAR(p) models.  So far, I have developed
+an AR(p) model, with a parameterization in terms of the reflection
+coefficients (see /RJTK/levinson-durbin-recursion or any book on
+signal processing).  This guarantees the stability of every posterior sample.
 
-![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/California-Housing_pred_regplot.png)
-
-More examples are in the `examples/` folder.
+![alt tag](https://github.com/RJTK/stan-learn/blob/master/stanlearn/examples/figures/Diabetes_pred.png)
