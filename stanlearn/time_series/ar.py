@@ -1,4 +1,5 @@
 import os
+from itertools import chain
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -66,6 +67,14 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
+
+        def iter_tau(name):
+            return [f"{name}[{tau}]" for tau in range(1, self.p + 1)]
+
+        pars = ["mu", "r", "sigma", "nu_beta"] + list(chain.from_iterable(
+            [iter_tau(name) for name in ["y0", "g_beta", "mu_beta", "g", "b"]]))
+
+        print(self._fit_results.stansummary(pars))
         return
 
     def predict(self, X, ret_posterior=False, **stan_fitting_kwargs):
@@ -132,13 +141,13 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         roots = self._compute_roots(param_df.loc[:, b_params].to_numpy())
 
-        params = (["sigma", "nu_beta", "mu", "r", "lam"] + b_params)
+        params = (["sigma", "nu_beta", "mu", "r"] + b_params)
         names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
-                  "$\\mu_y$", "$r$", "$\\lambda$"] + b_params_tex)
+                  "$\\mu_y$", "$r$"] + b_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
         param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
-        param_df.loc[:, "nu_beta"] = param_df.loc[:, "sigma"]**2
+        param_df.loc[:, "sigma"] = param_df.loc[:, "sigma"]**2
         param_df = param_df.loc[:, params]\
             .rename(rename, axis=1)
 
@@ -149,8 +158,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + rt + "
                      "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau), \\sigma^2); "
                      "\\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
-                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta); "
-                     "r \\sim \mathcal{N}(0, \\lambda^2)$")
+                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
 
         ax[0].set_title("Parameter Posteriors")
         sns.boxplot(

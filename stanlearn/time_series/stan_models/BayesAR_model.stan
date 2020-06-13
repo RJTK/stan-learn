@@ -52,7 +52,7 @@ functions {
   real ar_model_lpdf(vector y, vector y0, vector b, real sigma){
     int T = dims(y)[1];
     vector[T] y_hat = ar_model_forecast(y, y0, b, sigma);
-    return normal_lpdf(y | y_hat, sigma^2);
+    return normal_lpdf(y | y_hat, sigma);
   }
 
   vector ar_model_rng(vector y, vector y0, vector b, real sigma){
@@ -60,7 +60,7 @@ functions {
     vector[T] y_hat = ar_model_forecast(y, y0, b, sigma);
     vector[T] y_rng;
     for(t in 1:T)
-      y_rng[t] = normal_rng(y_hat[t], sigma^2);
+      y_rng[t] = normal_rng(y_hat[t], sigma);
     return y_rng;
   }
 }
@@ -81,7 +81,6 @@ transformed data {
 parameters {
   real mu;  // Mean value
   real r;  // Linear trend coefficient
-  real<lower=0> lam;  // magnitude of r
   vector[p] y0;  // Initial values
   vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
   real<lower=0> sigma;  // noise level
@@ -114,11 +113,10 @@ model {
   g_beta ~ beta(alpha, beta);  // in (0, 1)
 
   // trend parameters
-  lam ~ normal(0, 1);
-  r ~ normal(0, lam^2);
-  mu ~ normal(0, 1);  // A mean offset
+  r ~ normal(0, 2);  // The linear time coefficient
+  mu ~ normal(0, 2);  // A mean offset
 
-  y0 ~ normal(trend[:p], sigma^2);
+  y0 ~ normal(trend[:p], sigma);  // Initial values
   y - trend[p + 1:] ~ ar_model(y0, b, sigma);
 }
 

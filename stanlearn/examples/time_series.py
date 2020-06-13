@@ -50,7 +50,7 @@ def basic_example():
     fig, axes = ar.plot_posterior_params(show=False)
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
-    axes[1].legend()
+    axes[1].legend(loc="upper right")
     fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
     fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     plt.show()
