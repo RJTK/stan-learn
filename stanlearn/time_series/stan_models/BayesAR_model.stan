@@ -72,12 +72,15 @@ data {
 }
 
 transformed data {
+  vector[p + T] t;  // "time"
+  for (i in -p + 1:T)
+    t[i + p] = i;
 }
 
 parameters {
   real mu;  // Mean value
-  // real r;  // Linear trend coefficient
-  // real lam;  // magnitude of r
+  real r;  // Linear trend coefficient
+  real<lower=0> lam;  // magnitude of r
   vector[p] y0;  // Initial values
   vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
   real<lower=0> sigma;  // noise level
@@ -91,6 +94,7 @@ transformed parameters {
   vector<lower=0>[p] alpha;  // Params for beta prior on g
   vector<lower=0>[p] beta;
   vector<lower=-1, upper=1>[p] g;  // Reflection coefficients
+  vector[p + T] trend = mu + r * t;
 
   g = 2 * g_beta - 1;  // transform to (-1, 1)
   alpha = mu_beta * nu_beta;
@@ -100,8 +104,6 @@ transformed parameters {
 }
 
 model {
-  vector[p + T] trend;
-
   // Noise level in the signal
   sigma ~ normal(0, 5);
 
@@ -110,19 +112,16 @@ model {
   nu_beta ~ student_t(3, 1, 5);  // A scalar
   g_beta ~ beta(alpha, beta);  // in (0, 1)
 
-  // Construct a trend
-  // lam ~ student_t(3, 0, 5);
-  // r ~ normal(0, lam^2);
+  // trend parameters
+  lam ~ normal(0, 1);
+  r ~ normal(0, lam^2);
   mu ~ normal(0, 1);  // A mean offset
 
-  y0 - mu ~ normal(0, sigma^2);
-  y - mu ~ ar_model(y0, b, sigma);
-
-  // y0 - trend[:p] ~ normal(0, sigma^2);
-  // y - trend[p:] ~ ar_model(y0, b, sigma);
+  y0 ~ normal(trend[:p], sigma^2);
+  y - trend[p + 1:] ~ ar_model(y0, b, sigma);
 }
 
 generated quantities {
   vector[T] y_ppc;
-  y_ppc = mu + ar_model_rng(y, y0, b, sigma);
+  y_ppc = trend[p + 1:] + ar_model_rng(y, y0, b, sigma);
 }
