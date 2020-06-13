@@ -74,7 +74,7 @@ data {
 transformed data {
   vector[p + T] t;  // "time"
   for (i in -p + 1:T)
-    t[i + p] = i;
+    t[i + p] = i / T;  // Normalize to between [-p/T, 1]
 }
 
 parameters {
