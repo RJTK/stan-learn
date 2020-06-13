@@ -25,7 +25,6 @@ functions {
   }
 
   vector reverse(vector x){
-    // Isn't this built in?  stanc2.23 doesn't recognize it.
     int p = dims(x)[1];
     vector[p] x_rev;
     for (tau in 1:p)
@@ -33,38 +32,36 @@ functions {
     return x_rev;
   }
 
-  real ar_model_lpdf(vector y, vector y0, vector b, real mu, real sigma){
+  vector ar_model_forecast(vector y, vector y0, vector b, real sigma){
     int p = dims(b)[1];
     int T = dims(y)[1];
-    real lpdf_ret = 0.0;
+    vector[T] y_hat;
     vector[p] b_rev = reverse(b);
 
-    for(t in 1:p)
-      lpdf_ret += normal_lpdf(y[t] | mu + y0[t], sigma^2);
+    // Prepend the initial values y0
+    vector[p + T] y_full;
+    y_full[:p] = y0;
+    y_full[p + 1:] = y;
 
-    for(t in p + 1:T){
-      real y_hat = 0;
-      y_hat = dot_product(b_rev, y[t - p:t - 1]);
-      lpdf_ret += normal_lpdf(y[t] | mu + y_hat, sigma^2);
+    for(t in 1:T){
+      y_hat[t] = dot_product(b_rev, y_full[t:t + p - 1]);
     }
-    return lpdf_ret;
+    return y_hat;
   }
 
-  vector ar_model_rng(vector y, vector y0, vector b, real mu, real sigma){
-    int p = dims(b)[1];
+  real ar_model_lpdf(vector y, vector y0, vector b, real sigma){
     int T = dims(y)[1];
-    vector[T] y_1s; // 1 step ahead
-    vector[p] b_rev = reverse(b);
+    vector[T] y_hat = ar_model_forecast(y, y0, b, sigma);
+    return normal_lpdf(y | y_hat, sigma^2);
+  }
 
-    for(t in 1:p)
-      y_1s[t] = normal_rng(mu + y0[t], sigma^2);
-
-    for(t in p + 1:T){
-      real y_hat = 0;
-      y_hat = dot_product(b_rev, y[t - p:t - 1]);
-      y_1s[t] = normal_rng(mu + y_hat, sigma^2);
-    }
-    return y_1s;
+  vector ar_model_rng(vector y, vector y0, vector b, real sigma){
+    int T = dims(y)[1];
+    vector[T] y_hat = ar_model_forecast(y, y0, b, sigma);
+    vector[T] y_rng;
+    for(t in 1:T)
+      y_rng[t] = normal_rng(y_hat[t], sigma^2);
+    return y_rng;
   }
 }
 
@@ -79,6 +76,8 @@ transformed data {
 
 parameters {
   real mu;  // Mean value
+  // real r;  // Linear trend coefficient
+  // real lam;  // magnitude of r
   vector[p] y0;  // Initial values
   vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
   real<lower=0> sigma;  // noise level
@@ -101,6 +100,8 @@ transformed parameters {
 }
 
 model {
+  vector[p + T] trend;
+
   // Noise level in the signal
   sigma ~ normal(0, 5);
 
@@ -109,12 +110,19 @@ model {
   nu_beta ~ student_t(3, 1, 5);  // A scalar
   g_beta ~ beta(alpha, beta);  // in (0, 1)
 
+  // Construct a trend
+  // lam ~ student_t(3, 0, 5);
+  // r ~ normal(0, lam^2);
   mu ~ normal(0, 1);  // A mean offset
-  y0 ~ normal(mu, sigma^2);
-  y ~ ar_model(y0, b, mu, sigma);
+
+  y0 - mu ~ normal(0, sigma^2);
+  y - mu ~ ar_model(y0, b, sigma);
+
+  // y0 - trend[:p] ~ normal(0, sigma^2);
+  // y - trend[p:] ~ ar_model(y0, b, sigma);
 }
 
 generated quantities {
   vector[T] y_ppc;
-  y_ppc = ar_model_rng(y, y0, b, mu, sigma);
+  y_ppc = mu + ar_model_rng(y, y0, b, sigma);
 }
