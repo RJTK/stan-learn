@@ -67,7 +67,7 @@ functions {
 
 data {
   int<lower=1> T;  // Number of examples
-  int<lower=1> p;  // The lag
+  int<lower=1> p;  // The model order
   vector[T] y;  // the data series y(t)
 }
 
@@ -91,25 +91,26 @@ parameters {
 
 transformed parameters {
   vector[p] b;  // AR Coefficients
-  vector<lower=0>[p] alpha;  // Params for beta prior on g
-  vector<lower=0>[p] beta;
   vector<lower=-1, upper=1>[p] g;  // Reflection coefficients
   vector[p + T] trend = mu + r * t;
 
   g = 2 * g_beta - 1;  // transform to (-1, 1)
-  alpha = mu_beta * nu_beta;
-  beta = (1 - mu_beta) * nu_beta;
 
   b = step_up(g);  // Compute the actual AR coefficients
 }
 
 model {
+  vector[p] alpha;  // Params for beta prior on g
+  vector[p] beta;
+
   // Noise level in the signal
   sigma ~ normal(0, 5);
 
   // Priors for the reflection coefficients
   mu_beta ~ uniform(0, 1);  // A p-vector
-  nu_beta ~ student_t(3, 1, 5);  // A scalar
+  nu_beta ~ inv_gamma(3, 3);  // Want to keep (alpha, beta) > 1 else we get a U shape
+  alpha = mu_beta * nu_beta;
+  beta = (1 - mu_beta) * nu_beta;
   g_beta ~ beta(alpha, beta);  // in (0, 1)
 
   // trend parameters
