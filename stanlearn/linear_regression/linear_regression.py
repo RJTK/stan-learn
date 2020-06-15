@@ -57,7 +57,7 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
         self.max_samples_mem = max_samples_mem
 
         if normalize:
-            self._y_ss = StandardScaler(with_mean=False)
+            self._y_ss = StandardScaler()
             self._X_ss = StandardScaler()
         return
 
