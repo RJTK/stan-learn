@@ -147,42 +147,81 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             plt.show()
         return fig, ax
 
-    def plot_posterior_params(self, show=False):
+    def get_model_probabilities(self):
+        th = np.mean(self._fit_results.extract("theta")["theta"], axis=0)
+        th = np.append(th[-1], th[:-1])
+        return th
+
+    def most_probable_model(self):
+        th = self.get_model_probabilities()
+        p_mp = np.argmax(th)  # Most probable order
+        return p_mp
+
+    def plot_poles(self, p=None, axes=None, show=False):
+        if len(p) > 1:
+            # TODO: Straightforward but time consuming
+            # User can easily pass in the proper axes manually
+            raise NotImplementedError
+
+        if p is None:
+            p_mp = self.most_probable_model()
+        else:
+            p_mp = p
+        _fit_results = self._fit_results
+        N_samples = len(_fit_results.extract("gamma")["gamma"])
+
+        if p_mp == 0:
+            # AR(0)
+            roots = 0j + np.zeros(N_samples)
+        else:
+            ix0 = 1 + p_mp * (p_mp + 1) // 2 - p_mp
+            b_params = [f"b[{tau}]"for tau in range(ix0, ix0 + p_mp)]
+            param_df = _fit_results.to_dataframe(b_params)
+            roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
+
+        # Z-plot
+        if axes is None:
+            fig, ax = plt.subplots(1, 1)
+        else:
+            ax = axes
+
+        uc = patches.Circle((0, 0), radius=1, fill=False,
+                            color='black', linestyle='dashed')
+        ax.add_patch(uc)
+        ax.scatter(roots.real, roots.imag, color="#882255",
+                   marker="x", alpha=0.1)
+        ax.set_title("System Poles of Model $p = {}$".format(p_mp))
+        ax.set_xlabel("Re")
+        ax.set_ylabel("Im")
+        ax.set_aspect("equal")
+
+        if show:
+            plt.show()
+        return fig, ax
+
+    def plot_posterior_params(self, ax=None, show=False):
         """
         A helper method to plot the posterior parameter distribution.
         Will raise an error if .fit hasn't been called.
         """
         _fit_results = self._fit_results
-        param_df = _fit_results.to_dataframe()
         p_max = self.p_max
-
-        # Should plot parameters / roots from the most probable model
-        th = np.mean(_fit_results.extract("theta")["theta"], axis=0)
-        th = np.append(th[-1], th[:-1])
-
-        p_mp = np.argmax(th)  # Most probable order
 
         th_params = [f"theta[{tau}]" for tau in [p_max + 1] +
                      list(range(1, p_max + 1))]
         th_params_tex = [f"$\\theta_{tau}$" for tau in range(p_max + 1)]
 
-        if p_mp == 0:
-            # AR(0) is most probable
-            b_params = []
-            b_params_tex = []
-            roots = 0j + np.zeros(len(param_df))
-        else:
-            ix0 = 1 + p_mp * (p_mp + 1) // 2 - p_mp
-            b_params = [f"b[{tau}]"for tau in range(ix0, ix0 + p_mp)]
-            b_params_tex = [f"$b_{tau}$"for tau in range(1, p_mp + 1)]
-            roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
+        gamma_params = [f"gamma[{tau}]" for tau in range(1, p_max + 1)]
+        gamma_params_tex = [f"$\\Gamma_{tau}$" for tau in range(1, p_max + 1)]
 
         params = (["sigma", "nu_beta", "nu_th", "mu", "r"] +
-                  b_params + th_params)
+                  th_params + gamma_params)
         names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
                   "$\\mathrm{log}_{10}(\\nu_\\theta)$",
-                  "$\\mu_y$", "$r$"] + b_params_tex + th_params_tex)
+                  "$\\mu_y$", "$r$"] + th_params_tex + gamma_params_tex)
+
         rename = {frm: to for frm, to in zip(params, names)}
+        param_df = _fit_results.to_dataframe(params)
 
         param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
         param_df.loc[:, "nu_th"] = np.log10(param_df.loc[:, "nu_th"])
@@ -190,33 +229,21 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         param_df = param_df.loc[:, params]\
             .rename(rename, axis=1)
 
-        fig, axes = plt.subplots(1, 2)
-        ax = axes.ravel()
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+            fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + rt + "
+                         "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau),"
+                         " \\sigma^2); \\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
+                         "\\beta_\\mu(\\mu_{\\tau, \\beta}, \\nu_\\beta); "
+                         "p \\sim \mathrm{Cat}(\\theta)$")
 
-        # Plot parameters
-        fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + rt + "
-                     "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau), \\sigma^2); "
-                     "\\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
-                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
-
-        ax[0].set_title("Parameter Posteriors")
-        ax[0].set_xticklabels(labels=ax[0].get_xticklabels(), rotation=300)
+        ax.set_title("Parameter Posteriors")
+        ax.set_xticklabels(labels=ax.get_xticklabels(), rotation=300)
         sns.boxplot(
             data=param_df.melt(
                 value_name="Posterior Samples",
                 var_name="Parameter"),
-            x="Parameter", y="Posterior Samples", ax=ax[0])
-
-        # Z-plot
-        uc = patches.Circle((0, 0), radius=1, fill=False,
-                            color='black', linestyle='dashed')
-        ax[1].add_patch(uc)
-        ax[1].scatter(roots.real, roots.imag, color="#882255",
-                      marker="x", alpha=0.1)
-        ax[1].set_title("System Poles of Most Probable Model $p = {}$"
-                        "".format(p_mp))
-        ax[1].set_xlabel("Re")
-        ax[1].set_ylabel("Im")
+            x="Parameter", y="Posterior Samples", ax=ax)
 
         if show:
             plt.show()

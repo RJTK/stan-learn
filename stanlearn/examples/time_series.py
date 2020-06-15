@@ -21,7 +21,7 @@ except FileExistsError:
 
 def basic_example():
     p_max = 5
-    T = 300
+    T = 1000
     v = 0.25 * np.random.normal(size=T + p_max)
     y = np.array(v)
     b1 = 0.6
@@ -51,7 +51,7 @@ def basic_example():
     # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
-    fig, axes = ar.plot_posterior_params(show=False)
+    fig, axes = ar.plot_posterior_params(show=False, p=None)
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")
