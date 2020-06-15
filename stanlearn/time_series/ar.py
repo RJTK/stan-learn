@@ -29,7 +29,8 @@ def _compute_roots(b):
 
 class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def __init__(self, p_max=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
-                 n_chains=4, normalize=True, max_samples_mem=500):
+                 n_chains=4, normalize=True, max_samples_mem=500,
+                 mu_th=None, nu_th=2):
         BaseEstimator.__init__(self)
         StanCacheMixin.__init__(self, MODEL_DIR)
 
@@ -40,8 +41,13 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
                                     "iter": samples_per_chain + warmup,
                                     "warmup": warmup, "init": "random",
                                     "init_r": 1.0, "n_jobs": n_jobs,
-                                    "control": {"metric": "diag_e",
+                                    "control": {"metric": "dense_e",
                                                 "adapt_delta": 0.9}}
+
+        self.nu_th = nu_th
+        if mu_th is None:
+            mu_th = np.ones(p_max + 1)
+        self.mu_th = mu_th / sum(mu_th)  # Ensure it is a simplex
 
         self._fit_results = None
         self.normalize = normalize
@@ -70,7 +76,8 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             X = self._X_ss.fit_transform(X)
 
         X = X.ravel()
-        data = {"T": T, "p_max": self.p_max, "y": X}
+        data = {"T": T, "p_max": self.p_max, "y": X,
+                "nu_th": self.nu_th, "mu_th": self.mu_th}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)

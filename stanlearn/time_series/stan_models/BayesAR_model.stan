@@ -1,8 +1,6 @@
 /*
  * A mixture of AR(p) models up to a maximum order p_max.
- * Information on ragged datastructures is relevant:
- * https://mc-stan.org/docs/2_23/stan-users-guide/ragged-data-structs-section.html
- *
+ * Information on ragged datastructures in stan is relevant
  */
 
 functions {
@@ -74,13 +72,21 @@ functions {
 data {
   int<lower=1> T;  // Number of examples
   int<lower=1> p_max;  // The model order
+
+  simplex[p_max + 1] mu_th;  // Dirichlet mean for theta
+  real<lower=0> nu_th; // pseudo-samples for Dirichlet
+
   vector[T] y;  // the data series y(t)
 }
 
 transformed data {
+  vector[p_max + 1] alpha_th;  // transformed Dirichlet prior for theta
   vector[p_max + T] t;  // "time"
   int n_params = (p_max * (p_max + 1)) / 2;
   int model_size[p_max];
+
+  alpha_th = mu_th * nu_th;
+
   for(p in 1:p_max)  // For a raged data structure
     model_size[p] = p;
 
@@ -95,8 +101,8 @@ parameters {
   vector[p_max] y0;  // Initial values
   simplex[p_max + 1] theta;  // Mixture parameters
 
-  real<lower=0> nu_beta;  // pseudo-samples gamma
   vector<lower=0, upper=1>[n_params] mu_beta;  // Mean vector for gamma
+  real<lower=0> nu_beta;  // pseudo-samples gamma
   vector<lower=-1, upper=1>[n_params] gamma;  // Reflection coefficients
 
   real<lower=0> sigma;  // noise level
@@ -113,23 +119,20 @@ transformed parameters {
       pos += model_size[p];}}}
 
 model {
-  vector[n_params] alpha;  // Params for beta prior on g
+  vector[n_params] alpha;  // transformed gamma prior params
   vector[n_params] beta;
 
-  // simplex[p_max + 1] psi_th;  // Dirichlet mean for theta
-  // real nu_th; // pseudo-samples for Dirichlet
+  vector[p_max + 1] lpdfs;  // mixture pdfs
+  vector[p_max + T] trend;  // trend term
 
-  vector[p_max + 1] lpdfs;  // The mixture pdfs
-  vector[p_max + T] trend = mu + r * t;
-
-  // TODO: Sensible prior on theta should prefer simpler models
+  theta ~ dirichlet(alpha_th);
 
   // Noise level in the signal
   sigma ~ normal(0, 5);
 
   // Priors for the reflection coefficients
   mu_beta ~ uniform(0, 1);  // A vector
-  nu_beta ~ inv_gamma(3, 3);  // Keep (alpha, beta) > 1 else we get a U shape
+  nu_beta ~ inv_gamma(3, 3);
   {int pos = 1;
     for(p in 1:p_max){
       alpha[pos:pos + model_size[p] - 1] =
@@ -143,6 +146,9 @@ model {
   // trend parameters
   r ~ normal(0, 2);  // The linear time coefficient
   mu ~ normal(0, 2);  // A mean offset
+
+  // The simple trend term
+  trend = mu + r * t;
 
   // Initial values
   y0 ~ normal(trend[:p_max], sigma);

@@ -38,7 +38,11 @@ def basic_example():
     y = y + mu + r * np.arange(-p_max, T)
     y = y[p_max:].reshape(-1, 1)
 
-    ar = BayesAR(normalize=False, p_max=p_max, n_chains=4, warmup=1500)
+    nu_th = 3  # Priors for model order
+    mu_th = 1. / np.arange(1, p_max + 2)
+    mu_th /= sum(mu_th)
+    ar = BayesAR(normalize=False, p_max=p_max, n_chains=4, warmup=2000,
+                 nu_th=nu_th, mu_th=mu_th)
     ar.fit(y)
 
     fig, _ = ar.plot_ppc(y, show=False)
