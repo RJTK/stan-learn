@@ -20,9 +20,9 @@ except FileExistsError:
 
 
 def basic_example():
-    p = 3  # Misspecify p
+    p_max = 5
     T = 100
-    v = 0.25 * np.random.normal(size=T + p)
+    v = 0.25 * np.random.normal(size=T + p_max)
     y = np.array(v)
     b1 = 0.6
     b2 = -0.8
@@ -31,15 +31,14 @@ def basic_example():
     r = 1.2 / T
 
     true_roots = polyroots(np.append(
-        -np.array([b1, b2] + [0.0] * (p - 2))[::-1], 1))
+        -np.array([b1, b2] + [0.0] * (p_max - 2))[::-1], 1))
 
     for t in range(T):
         y[t] = b1 * y[t - 1] + b2 * y[t - 2] + v[t]
-    y = y + mu + r * np.arange(-p, T)
+    y = y + mu + r * np.arange(-p_max, T)
+    y = y[p_max:].reshape(-1, 1)
 
-    y = y[p:].reshape(-1, 1)
-
-    ar = BayesAR(normalize=False, p=p)
+    ar = BayesAR(normalize=False, p_max=p_max, n_chains=4, warmup=1500)
     ar.fit(y)
 
     fig, _ = ar.plot_ppc(y, show=False)
