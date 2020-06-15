@@ -23,17 +23,24 @@ transformed data {
 }
 
 parameters {
-  real y0; // intercept
+  real y0;  // The intercept
+  real<lower=0, upper=pi() / 2> unif_nu;  // reparameterization for nu
+
   vector[M] theta;  // model coefficients in Q space
   real<lower=0> sigma;  // noise term
   real<lower=0> lam;  // theta space magnitude of coefficients
-  real<lower=0> nu;  // noise model student-t dof
+}
+
+transformed parameters{
+  real nu;  // output dof
+  nu = 2 + tan(unif_nu);  // half-cauchy
 }
 
 model {
-  y0 ~ cauchy(0, 1);
-  nu ~ cauchy(0, 1);
-  sigma ~ normal(0, 1);  // half-normal
+  y0 ~ normal(0, 1);
+
+  unif_nu ~ uniform(0, pi() / 2);
+  sigma ~ std_normal();  // half-normal
   lam ~ exponential(1);
   theta ~ normal(0, lam);
   y ~ student_t(nu, y0 + Q * theta, sigma);
