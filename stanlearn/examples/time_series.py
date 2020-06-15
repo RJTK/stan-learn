@@ -21,7 +21,7 @@ except FileExistsError:
 
 def basic_example():
     p = 3  # Misspecify p
-    T = 100
+    T = 1000
     v = 0.25 * np.random.normal(size=T + p)
     y = np.array(v)
     b1 = 0.6
