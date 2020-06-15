@@ -194,7 +194,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         return ax
 
 
-class MixtureBayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
+class BayesMixtureAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def __init__(self, p_max=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True, max_samples_mem=500,
                  mu_th=None, nu_th=2):
@@ -323,11 +323,6 @@ class MixtureBayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         return p_mp
 
     def plot_poles(self, p=None, ax=None, show=False):
-        if len(p) > 1:
-            # TODO: Straightforward but time consuming
-            # User can easily pass in the proper axes manually
-            raise NotImplementedError
-
         if p is None:
             p_mp = self.most_probable_model()
         else:

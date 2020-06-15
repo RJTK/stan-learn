@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import polyroots
 
-from stanlearn.time_series import BayesAR, MixtureBayesAR
+from stanlearn.time_series import BayesAR, BayesMixtureAR
 
 try:
     FIGURE_DIR = os.path.join(os.path.dirname(__file__),
@@ -83,7 +83,7 @@ def mixture_example():
     mu_th = 1. / np.arange(1, p_max + 2)**(1./3)
     mu_th /= sum(mu_th)
 
-    ar = MixtureBayesAR(normalize=False, p_max=p_max, n_chains=4, warmup=3000,
+    ar = BayesMixtureAR(normalize=False, p_max=p_max, n_chains=4, warmup=3000,
                         nu_th=nu_th, mu_th=mu_th)
     ar.fit(y)
 
