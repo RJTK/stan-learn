@@ -44,10 +44,13 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
                                     "control": {"metric": "dense_e",
                                                 "adapt_delta": 0.9}}
 
-        self.nu_th = nu_th
+        # self.nu_th = nu_th
         if mu_th is None:
             mu_th = np.ones(p_max + 1)
-        self.mu_th = mu_th / sum(mu_th)  # Ensure it is a simplex
+        mu_th = mu_th / sum(mu_th)  # Ensure it is a simplex
+
+        # In stan the last index is for the AR(0) model.
+        self.mu_th = np.append(mu_th[1:], mu_th[0])
 
         self._fit_results = None
         self.normalize = normalize
@@ -77,7 +80,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         X = X.ravel()
         data = {"T": T, "p_max": self.p_max, "y": X,
-                "nu_th": self.nu_th, "mu_th": self.mu_th}
+                "mu_th": self.mu_th}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
@@ -85,8 +88,10 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         def iter_tau(name):
             return [f"{name}[{tau}]" for tau in range(1, self.p_max + 1)]
 
-        pars = ["mu", "r", "sigma", "nu_beta"] + list(chain.from_iterable(
-            [iter_tau(name) for name in ["y0", "b", "theta"]]))
+        pars = (["mu", "r", "sigma", "nu_th",
+                 "nu_beta", "theta[{}]".format(self.p_max + 1)] +
+                list(chain.from_iterable(
+                    [iter_tau(name) for name in ["y0", "b", "theta"]])))
 
         print(self._fit_results.stansummary(pars))
         return
@@ -153,11 +158,13 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         # Should plot parameters / roots from the most probable model
         th = np.mean(_fit_results.extract("theta")["theta"], axis=0)
+        th = np.append(th[-1], th[:-1])
 
         p_mp = np.argmax(th)  # Most probable order
 
-        th_params = [f"theta[{tau}]" for tau in range(1, p_max + 2)]
-        th_params_tex = [f"$\\theta_{tau}$" for tau in range(1, p_max + 2)]
+        th_params = [f"theta[{tau}]" for tau in [p_max + 1] +
+                     list(range(1, p_max + 1))]
+        th_params_tex = [f"$\\theta_{tau}$" for tau in range(p_max + 1)]
 
         if p_mp == 0:
             # AR(0) is most probable
@@ -170,12 +177,15 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             b_params_tex = [f"$b_{tau}$"for tau in range(1, p_mp + 1)]
             roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
 
-        params = (["sigma", "nu_beta", "mu", "r"] + b_params + th_params)
+        params = (["sigma", "nu_beta", "nu_th", "mu", "r"] +
+                  b_params + th_params)
         names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
+                  "$\\mathrm{log}_{10}(\\nu_\\theta)$",
                   "$\\mu_y$", "$r$"] + b_params_tex + th_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
         param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
+        param_df.loc[:, "nu_th"] = np.log10(param_df.loc[:, "nu_th"])
         param_df.loc[:, "sigma"] = param_df.loc[:, "sigma"]**2
         param_df = param_df.loc[:, params]\
             .rename(rename, axis=1)

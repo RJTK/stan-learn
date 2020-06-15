@@ -21,7 +21,7 @@ except FileExistsError:
 
 def basic_example():
     p_max = 5
-    T = 100
+    T = 300
     v = 0.25 * np.random.normal(size=T + p_max)
     y = np.array(v)
     b1 = 0.6
@@ -31,7 +31,7 @@ def basic_example():
     r = 1.2 / T
 
     true_roots = polyroots(np.append(
-        -np.array([b1, b2] + [0.0] * (p_max - 2))[::-1], 1))
+        -np.array([b1, b2])[::-1], 1))
 
     for t in range(T):
         y[t] = b1 * y[t - 1] + b2 * y[t - 2] + v[t]
@@ -39,23 +39,24 @@ def basic_example():
     y = y[p_max:].reshape(-1, 1)
 
     nu_th = 3  # Priors for model order
-    mu_th = 1. / np.arange(1, p_max + 2)
+    mu_th = 1. / np.arange(1, p_max + 2)**(1./3)
     mu_th /= sum(mu_th)
-    ar = BayesAR(normalize=False, p_max=p_max, n_chains=4, warmup=2000,
+
+    ar = BayesAR(normalize=False, p_max=p_max, n_chains=4, warmup=3000,
                  nu_th=nu_th, mu_th=mu_th)
     ar.fit(y)
 
     fig, _ = ar.plot_ppc(y, show=False)
-    fig.savefig(FIGURE_DIR + "time_series_ppc.png")
-    fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
     fig, axes = ar.plot_posterior_params(show=False)
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")
-    fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
-    fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
+    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
+    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     plt.show()
 
     return

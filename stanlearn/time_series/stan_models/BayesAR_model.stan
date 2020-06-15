@@ -74,18 +74,14 @@ data {
   int<lower=1> p_max;  // The model order
 
   simplex[p_max + 1] mu_th;  // Dirichlet mean for theta
-  real<lower=0> nu_th; // pseudo-samples for Dirichlet
 
   vector[T] y;  // the data series y(t)
 }
 
 transformed data {
-  vector[p_max + 1] alpha_th;  // transformed Dirichlet prior for theta
   vector[p_max + T] t;  // "time"
   int n_params = (p_max * (p_max + 1)) / 2;
   int model_size[p_max];
-
-  alpha_th = mu_th * nu_th;
 
   for(p in 1:p_max)  // For a raged data structure
     model_size[p] = p;
@@ -101,9 +97,10 @@ parameters {
   vector[p_max] y0;  // Initial values
   simplex[p_max + 1] theta;  // Mixture parameters
 
-  vector<lower=0, upper=1>[n_params] mu_beta;  // Mean vector for gamma
+  vector<lower=0, upper=1>[p_max] mu_beta;  // Mean vector for gamma
+  real<lower=0> nu_th; // pseudo-samples for Dirichlet
   real<lower=0> nu_beta;  // pseudo-samples gamma
-  vector<lower=-1, upper=1>[n_params] gamma;  // Reflection coefficients
+  vector<lower=-1, upper=1>[p_max] gamma;  // Reflection coefficients
 
   real<lower=0> sigma;  // noise level
 }
@@ -114,16 +111,19 @@ transformed parameters {
   {int pos = 1;
     // Compute the actual AR coefficients
     for(p in 1:p_max){
-      b[pos:pos + model_size[p] - 1] =
-        step_up(gamma[pos:pos + model_size[p] - 1]);
+      b[pos:pos + model_size[p] - 1] = step_up(gamma[:p]);
       pos += model_size[p];}}}
 
 model {
-  vector[n_params] alpha;  // transformed gamma prior params
-  vector[n_params] beta;
+  vector[p_max] alpha;  // transformed gamma prior params
+  vector[p_max] beta;
+  vector[p_max + 1] alpha_th;  // transformed Dirichlet prior for theta
 
   vector[p_max + 1] lpdfs;  // mixture pdfs
   vector[p_max + T] trend;  // trend term
+
+  nu_th ~ inv_gamma(3, 3);
+  alpha_th = mu_th * nu_th;
 
   theta ~ dirichlet(alpha_th);
 
@@ -133,15 +133,8 @@ model {
   // Priors for the reflection coefficients
   mu_beta ~ uniform(0, 1);  // A vector
   nu_beta ~ inv_gamma(3, 3);
-  {int pos = 1;
-    for(p in 1:p_max){
-      alpha[pos:pos + model_size[p] - 1] =
-        mu_beta[pos:pos + model_size[p] - 1] * nu_beta;
-
-      beta[pos:pos + model_size[p] - 1] =
-        (1 - mu_beta[pos:pos + model_size[p] - 1]) * nu_beta;
-
-      pos = pos + model_size[p];}}
+  alpha = mu_beta * nu_beta;
+  beta = (1 - mu_beta) * nu_beta;
 
   // trend parameters
   r ~ normal(0, 2);  // The linear time coefficient
@@ -169,7 +162,32 @@ model {
   target += log_sum_exp(lpdfs);
 }
 
-// generated quantities {
-//   vector[T] y_ppc;
-//   y_ppc = trend[p + 1:] + ar_model_rng(y, y0, b, sigma);
-// }
+generated quantities {
+  vector[T] y_ppc;
+  vector[T] trend;  // trend term
+  int p = categorical_rng(theta);
+  int pos;
+
+  trend = mu + r * t[p_max + 1:];
+  y_ppc = trend;
+
+  if(p == 1){  // AR(1)
+    y_ppc += ar_model_rng(y, y0[:1], b[:1], sigma);
+  }
+  else if(p == p_max + 1){  // AR(0)
+    for(i in 1:T)
+      y_ppc[i] += normal_rng(0, sigma);
+  }
+  else{  // AR(p), p > 1
+    pos = 1 + sum(model_size[:p - 1]);
+    y_ppc += ar_model_rng(y, y0[:model_size[p]], b[pos:pos + model_size[p] - 1], sigma);
+  }
+}
+
+
+// Exception: assign: Rows of left-hand-side (305) and rows of right-hand-side (300) must match in size  (in 'BayesAR_model.stan' at line 171)
+
+
+// Exception: add: Rows of m1 (305) and rows of m2 (300) must match in size  (in 'BayesAR_model.stan' at line 174)
+
+// Exception: []: accessing element out of range. index 6 out of range; expecting index to be between 1 and 5; index position = 1model_size  (in 'BayesAR_model.stan' at line 174)
