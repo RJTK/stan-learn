@@ -178,10 +178,8 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
 
         # Z-plot
-        if axes is None:
+        if ax is None:
             fig, ax = plt.subplots(1, 1)
-        else:
-            ax = axes
 
         uc = patches.Circle((0, 0), radius=1, fill=False,
                             color='black', linestyle='dashed')
