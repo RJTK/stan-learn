@@ -1,1 +1,1 @@
-from .ar import BayesAR
+from .ar import BayesAR, MixtureBayesAR

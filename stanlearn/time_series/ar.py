@@ -113,8 +113,10 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def get_trend(self):
         return self._fit_results.extract("trend")["trend"]
 
-    def plot_ppc(self, y, show=False):
-        fig, ax = plt.subplots(1, 1)
+    def plot_ppc(self, y, ax=None, show=False):
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+
         y_trend = self.get_trend()
         y_ppc = self.get_ppc()
 
@@ -133,13 +135,16 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         if show:
             plt.show()
-        return fig, ax
+        return ax
 
-    def plot_posterior_params(self, show=False):
+    def plot_posterior_params(self, ax=None, show=False):
         """
         A helper method to plot the posterior parameter distribution.
         Will raise an error if .fit hasn't been called.
         """
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+
         param_df = self._fit_results.to_dataframe()
         p = self.p
 
@@ -186,13 +191,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         if show:
             plt.show()
-        return fig, ax
-
-    def _compute_roots(self, b):
-        roots = []
-        for bi in b:
-            roots.append(polyroots(np.append(-bi[::-1], 1)))
-        return np.vstack(roots)
+        return ax
 
 
 class MixtureBayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
