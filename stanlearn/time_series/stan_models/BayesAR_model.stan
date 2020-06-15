@@ -97,9 +97,9 @@ parameters {
   vector[p_max] y0;  // Initial values
   simplex[p_max + 1] theta;  // Mixture parameters
 
-  vector<lower=0, upper=1>[p_max] mu_beta;  // Mean vector for gamma
+  // vector<lower=0, upper=1>[p_max] mu_gamma;  // Mean vector for gamma
   real<lower=0> nu_th; // pseudo-samples for Dirichlet
-  real<lower=0> nu_beta;  // pseudo-samples gamma
+  vector<lower=0>[p_max] nu_gamma;  // pseudo-samples gamma
   vector<lower=-1, upper=1>[p_max] gamma;  // Reflection coefficients
 
   real<lower=0> sigma;  // noise level
@@ -122,6 +122,8 @@ model {
   vector[p_max + 1] lpdfs;  // mixture pdfs
   vector[p_max + T] trend;  // trend term
 
+  real mu_gamma = 0.5;
+
   nu_th ~ inv_gamma(3, 3);
   alpha_th = mu_th * nu_th;
 
@@ -131,10 +133,11 @@ model {
   sigma ~ normal(0, 5);
 
   // Priors for the reflection coefficients
-  mu_beta ~ uniform(0, 1);  // A vector
-  nu_beta ~ inv_gamma(3, 3);
-  alpha = mu_beta * nu_beta;
-  beta = (1 - mu_beta) * nu_beta;
+  // mu_gamma ~ uniform(0, 1);  // A vector
+  // nu_gamma ~ inv_gamma(3, 3);
+  nu_gamma ~ exponential(0.1);
+  alpha = mu_gamma * nu_gamma;
+  beta = (1 - mu_gamma) * nu_gamma;
 
   // trend parameters
   r ~ normal(0, 2);  // The linear time coefficient

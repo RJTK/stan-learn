@@ -88,10 +88,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         def iter_tau(name):
             return [f"{name}[{tau}]" for tau in range(1, self.p_max + 1)]
 
-        pars = (["mu", "r", "sigma", "nu_th",
-                 "nu_beta", "theta[{}]".format(self.p_max + 1)] +
-                list(chain.from_iterable(
-                    [iter_tau(name) for name in ["y0", "b", "theta"]])))
+        pars = ["mu", "r", "sigma", "nu_gamma", "gamma", "theta", "y0"]
 
         print(self._fit_results.stansummary(pars))
         return
@@ -140,12 +137,13 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         
         ax.set_xlabel("$t$")
         ax.set_ylabel("$y$")
-        ax.set_title("AR(p) model PPC")
+        ax.set_title("Mixture $\sum_{p = 1}^\mathrm{p_{max}} "
+                     "\theta_p AR(p)$ model PPC")
         ax.legend(loc="upper right")
 
         if show:
             plt.show()
-        return fig, ax
+        return ax
 
     def get_model_probabilities(self):
         th = np.mean(self._fit_results.extract("theta")["theta"], axis=0)
@@ -197,7 +195,8 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         if show:
             plt.show()
-        return fig, ax
+
+        return ax
 
     def plot_posterior_params(self, ax=None, show=False):
         """
@@ -211,19 +210,23 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
                      list(range(1, p_max + 1))]
         th_params_tex = [f"$\\theta_{tau}$" for tau in range(p_max + 1)]
 
-        gamma_params = [f"gamma[{tau}]" for tau in range(1, p_max + 1)]
-        gamma_params_tex = [f"$\\Gamma_{tau}$" for tau in range(1, p_max + 1)]
+        gamma_params = ([f"gamma[{tau}]" for tau in range(1, p_max + 1)] +
+                        [f"nu_gamma[{tau}]" for tau in range(1, p_max + 1)])
+        gamma_params_tex = (
+            [f"$\\Gamma_{tau}$" for tau in range(1, p_max + 1)] +
+            [f"$\\mathrm{{log}}_{{10}}(\\nu_{tau})$"
+             for tau in range(1, p_max + 1)])
 
-        params = (["sigma", "nu_beta", "nu_th", "mu", "r"] +
+        params = (["sigma", "nu_th", "mu", "r"] +
                   th_params + gamma_params)
-        names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
-                  "$\\mathrm{log}_{10}(\\nu_\\theta)$",
+        names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\theta)$",
                   "$\\mu_y$", "$r$"] + th_params_tex + gamma_params_tex)
 
         rename = {frm: to for frm, to in zip(params, names)}
         param_df = _fit_results.to_dataframe(params)
 
-        param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
+        for param in [p for p in gamma_params if p[:2] == "nu"]:
+            param_df.loc[:, param] = np.log10(param_df.loc[:, param])
         param_df.loc[:, "nu_th"] = np.log10(param_df.loc[:, "nu_th"])
         param_df.loc[:, "sigma"] = param_df.loc[:, "sigma"]**2
         param_df = param_df.loc[:, params]\
@@ -234,7 +237,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + rt + "
                          "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau),"
                          " \\sigma^2); \\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
-                         "\\beta_\\mu(\\mu_{\\tau, \\beta}, \\nu_\\beta); "
+                         "\\beta_\\mu(\\mu_{\\tau, \\gamma}, \\nu_\\gamma); "
                          "p \\sim \mathrm{Cat}(\\theta)$")
 
         ax.set_title("Parameter Posteriors")
@@ -248,4 +251,4 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         if show:
             plt.show()
 
-        return fig, ax
+        return ax

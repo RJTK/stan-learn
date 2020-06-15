@@ -46,17 +46,21 @@ def basic_example():
                  nu_th=nu_th, mu_th=mu_th)
     ar.fit(y)
 
-    fig, _ = ar.plot_ppc(y, show=False)
-    # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
-    # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
+    ax = ar.plot_ppc(y, show=False)
+    fig = ax.figure
+    fig.savefig(FIGURE_DIR + "time_series_ppc.png")
+    fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
-    fig, axes = ar.plot_posterior_params(show=False, p=None)
+    fig, axes = plt.subplots(1, 2)
+    axes = axes.ravel()
+    ar.plot_posterior_params(show=False, ax=axes[0])
+    ar.plot_poles(p=None, show=False, ax=axes[1])
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")
-    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
-    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
+    fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
+    fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     plt.show()
 
     return
