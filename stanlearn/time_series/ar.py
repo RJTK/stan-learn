@@ -137,8 +137,8 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         
         ax.set_xlabel("$t$")
         ax.set_ylabel("$y$")
-        ax.set_title("Mixture $\sum_{p = 1}^\mathrm{p_{max}} "
-                     "\theta_p AR(p)$ model PPC")
+        ax.set_title("Mixture $\sum_{p = 1}^{p_\\mathrm{max}} "
+                     "\\theta_p AR(p)$ model PPC")
         ax.legend(loc="upper right")
 
         if show:
@@ -155,7 +155,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         p_mp = np.argmax(th)  # Most probable order
         return p_mp
 
-    def plot_poles(self, p=None, axes=None, show=False):
+    def plot_poles(self, p=None, ax=None, show=False):
         if len(p) > 1:
             # TODO: Straightforward but time consuming
             # User can easily pass in the proper axes manually
