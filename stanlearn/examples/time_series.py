@@ -42,18 +42,20 @@ def basic_example():
     ar = BayesAR(normalize=False, p=p)
     ar.fit(y)
 
-    fig, _ = ar.plot_ppc(y, show=False)
+    ax = ar.plot_ppc(y, show=False)
+    fig = ax.figure
     fig.savefig(FIGURE_DIR + "time_series_ppc.png")
     fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
-    fig, axes = ar.plot_posterior_params(show=False)
+    axes = ar.plot_posterior_params(show=False)
+    fig = axes[0].figure
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")
     fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
     fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
-    plt.show()
+    fig.show()
 
     return
 

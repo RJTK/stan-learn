@@ -186,11 +186,3 @@ generated quantities {
     y_ppc += ar_model_rng(y, y0[:model_size[p]], b[pos:pos + model_size[p] - 1], sigma);
   }
 }
-
-
-// Exception: assign: Rows of left-hand-side (305) and rows of right-hand-side (300) must match in size  (in 'BayesAR_model.stan' at line 171)
-
-
-// Exception: add: Rows of m1 (305) and rows of m2 (300) must match in size  (in 'BayesAR_model.stan' at line 174)
-
-// Exception: []: accessing element out of range. index 6 out of range; expecting index to be between 1 and 5; index position = 1model_size  (in 'BayesAR_model.stan' at line 174)

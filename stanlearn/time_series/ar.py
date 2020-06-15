@@ -142,8 +142,8 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         A helper method to plot the posterior parameter distribution.
         Will raise an error if .fit hasn't been called.
         """
-        if ax is None:
-            fig, ax = plt.subplots(1, 1)
+        if ax is not None:
+            raise NotImplementedError
 
         param_df = self._fit_results.to_dataframe()
         p = self.p
@@ -151,7 +151,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         b_params = [f"b[{tau}]"for tau in range(1, p + 1)]
         b_params_tex = [f"$b_{tau}$"for tau in range(1, p + 1)]
 
-        roots = self._compute_roots(param_df.loc[:, b_params].to_numpy())
+        roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
 
         params = (["sigma", "nu_beta", "mu", "r"] + b_params)
         names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
