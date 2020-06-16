@@ -66,12 +66,12 @@ def basic_example():
     return
 
 
-def mixture_example():
+def mixture_example1():
     p_max = 5
     T = 1000
     v = 0.25 * np.random.normal(size=T + p_max)
     y = np.array(v)
-    b1 = 0.6
+    b1 = 1.6
     b2 = -0.8
 
     mu = -0.7
@@ -108,6 +108,113 @@ def mixture_example():
     axes[1].legend(loc="upper right")
     fig.savefig(FIGURE_DIR + "mixture_time_series_param_posterior.png")
     fig.savefig(FIGURE_DIR + "mixture_time_series_param_posterior.pdf")
+    plt.show()
+
+    return
+
+def mixture_example2():
+    p_max = 5
+    T = 10000
+    v = 0.25 * np.random.normal(size=T + p_max)
+    y = np.array(v)
+
+    mu = -0.7
+    r = 1.2 / T
+
+    b1 = 0.9
+    b2 = 0.5
+    b3 = -0.8
+
+    true_roots = polyroots(np.append(
+        -np.array([b1, b2, b3])[::-1], 1))
+    print(np.abs(true_roots))
+
+    for t in range(T):
+        y[t] = b1 * y[t - 1] + b2 * y[t - 2] + b3 * y[t - 3] + v[t]
+    y = y + mu + r * np.arange(-p_max, T)
+    y = y[p_max:].reshape(-1, 1)
+
+    mu_th = np.ones(p_max + 1)  # / np.arange(1, p_max + 2)**(1./3)
+    mu_th /= sum(mu_th)
+
+    ar = BayesMixtureAR(normalize=False, p_max=p_max, n_chains=4, warmup=3000,
+                        mu_th=mu_th)
+    ar.fit(y)
+
+    ax = ar.plot_ppc(y, show=False)
+    fig = ax.figure
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_ppc.png")
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_ppc.pdf")
+    plt.show()
+
+    fig, axes = plt.subplots(1, 2)
+    axes = axes.ravel()
+    ar.plot_posterior_params(show=False, ax=axes[0])
+    ar.plot_poles(p=None, show=False, ax=axes[1])
+    axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
+                    label="True Poles", color="#117733")
+    axes[1].legend(loc="upper right")
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_param_posterior.png")
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_param_posterior.pdf")
+    plt.show()
+
+    fig, ax = plt.subplots(1, 1)
+    ar.plot_posterior_params(show=False, ax=ax)
+    plt.show()
+
+    return
+
+def mixture_example2():
+    p_max = 5
+    T = 1000
+    v = 0.25 * np.random.normal(size=T + p_max)
+    y = np.array(v)
+
+    mu = -0.7
+    r = 1.2 / T
+
+    b1 = 0.9
+    b2 = -0.5
+    b3 = 0.0
+    b4 = 0.6
+    b5 = -0.5
+
+    true_roots = polyroots(np.append(
+        -np.array([b1, b2, b3, b4, b5])[::-1], 1))
+    print(np.abs(true_roots))
+
+    for t in range(T):
+        y[t] = (b1 * y[t - 1] + b2 * y[t - 2] + b3 * y[t - 3] +
+                b4 * y[t - 4] + b5 * y[t - 5] + v[t])
+    y = y + mu + r * np.arange(-p_max, T)
+    y = y[p_max:].reshape(-1, 1)
+
+    mu_th = np.ones(p_max + 1)  # / np.arange(1, p_max + 2)**(1./3)
+    mu_th /= sum(mu_th)
+
+    ar = BayesMixtureAR(normalize=False, p_max=p_max, n_chains=4, warmup=3000,
+                        mu_th=mu_th)
+    ar.fit(y)
+
+    ax = ar.plot_ppc(y, show=False)
+    fig = ax.figure
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_ppc.png")
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_ppc.pdf")
+    plt.show()
+
+    fig, axes = plt.subplots(1, 2)
+    axes = axes.ravel()
+    ar.plot_posterior_params(show=False, ax=axes[0])
+    ar.plot_poles(p=None, show=False, ax=axes[1])
+    axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
+                    label="True Poles", color="#117733")
+    axes[1].legend(loc="upper right")
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_param_posterior.png")
+    # fig.savefig(FIGURE_DIR + "mixture_time_series_param_posterior.pdf")
+    plt.show()
+
+    fig, ax = plt.subplots(1, 1)
+    ar.plot_posterior_params(show=False, ax=ax)
     plt.show()
 
     return
