@@ -149,7 +149,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         p = self.p
 
         b_params = [f"b[{tau}]"for tau in range(1, p + 1)]
-        b_params_tex = [f"$b_{tau}$"for tau in range(1, p + 1)]
+        b_params_tex = [f"$b_{{{tau}}}$"for tau in range(1, p + 1)]
 
         roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
 
@@ -171,6 +171,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
                      "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau), \\sigma^2); "
                      "\\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
                      "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
+        ax[0].set_xticklabels(labels=ax[0].get_xticklabels(), rotation=300)
 
         ax[0].set_title(f"Parameter Posteriors for $k = {k}$")
         sns.boxplot(
@@ -188,7 +189,6 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         ax[1].set_title("System Poles")
         ax[1].set_xlabel("Re")
         ax[1].set_ylabel("Im")
-
         if show:
             plt.show()
         return ax
