@@ -20,9 +20,12 @@ except FileExistsError:
 
 
 def basic_example():
+    # Repetitions of the same model
     p = 3  # Misspecify p
-    T = 1000
-    v = 0.25 * np.random.normal(size=T + p)
+    T = 100
+    K = 3
+    sigma = np.array([0.25, 1.2, 0.8] + [1.0] * (K - 3))
+    v = sigma[None, :] * np.random.normal(size=(T + p, K))
     y = np.array(v)
     b1 = 0.6
     b2 = -0.8
@@ -34,16 +37,19 @@ def basic_example():
         -np.array([b1, b2] + [0.0] * (p - 2))[::-1], 1))
 
     for t in range(T):
-        y[t] = b1 * y[t - 1] + b2 * y[t - 2] + v[t]
-    y = y + mu + r * np.arange(-p, T)
+        y[t, :] = b1 * y[t - 1, :] + b2 * y[t - 2, :] + v[t, :]
+    y = y + mu + r * np.arange(-p, T)[:, None]
 
-    y = y[p:].reshape(-1, 1)
-
-    ar = BayesAR(normalize=False, p=p)
+    ar = BayesAR(normalize=False, p=p, warmup=500, samples_per_chain=500)
     ar.fit(y)
 
-    ax = ar.plot_ppc(y, show=False)
-    fig = ax.figure
+    fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
+    for k in range(1, 4):
+        ar.plot_ppc(y[:, k - 1], k=k, show=False, ax=ax[k - 1],
+                    labels=(k == 3))
+        ax[k - 1].set_title(f"$k = {k}$")
+    fig = ax[0].figure
+    fig.suptitle("$AR(p)$ PPC")
     fig.savefig(FIGURE_DIR + "time_series_ppc.png")
     fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()

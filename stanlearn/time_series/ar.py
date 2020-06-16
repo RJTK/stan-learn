@@ -62,15 +62,12 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         """
         if sample_weight is not None:
             raise NotImplementedError("sampling weighting is not implemented.")
-        T, n = X.shape
-        if n > 1:
-            raise NotImplementedError
+        T, K = X.shape
 
         if self.normalize:
             X = self._X_ss.fit_transform(X)
 
-        X = X.ravel()
-        data = {"T": T, "p": self.p, "y": X}
+        data = {"Tfull": T, "p": self.p, "yfull": X.T, "K": K}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
@@ -78,8 +75,8 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         def iter_tau(name):
             return [f"{name}[{tau}]" for tau in range(1, self.p + 1)]
 
-        pars = ["mu", "r", "sigma", "nu_beta"] + list(chain.from_iterable(
-            [iter_tau(name) for name in ["y0", "g_beta", "mu_beta", "g", "b"]]))
+        pars = ["mu", "r", "sigma_hier", "sigma_rate", "sigma",
+                "nu_beta", "g_beta", "mu_beta", "g", "b"]
 
         print(self._fit_results.stansummary(pars))
         return
@@ -113,12 +110,14 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def get_trend(self):
         return self._fit_results.extract("trend")["trend"]
 
-    def plot_ppc(self, y, ax=None, show=False):
+    def plot_ppc(self, y, k=1, ax=None, show=False, labels=True):
         if ax is None:
             fig, ax = plt.subplots(1, 1)
+        p = self.p
+        y = y[p:]
 
         y_trend = self.get_trend()
-        y_ppc = self.get_ppc()
+        y_ppc = self.get_ppc()[:, k - 1, :]
 
         ax.plot(y_trend.T, linewidth=0.5, color="#88CCEE", alpha=0.1)
         ax.plot(y_ppc.T, linewidth=0.5, color="#CC6677", alpha=0.1)
@@ -126,18 +125,19 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
                 label="y")
         ax.plot(np.mean(y_ppc, axis=0), linewidth=2.0, color="#882255",
                 alpha=0.8, label="y\_ppc")
-        plt.plot([], [], linewidth=2, color="#88CCEE", label="trend")
-        
-        ax.set_xlabel("$t$")
-        ax.set_ylabel("$y$")
-        ax.set_title("AR(p) model PPC")
-        ax.legend(loc="upper right")
+        ax.plot([], [], linewidth=2, color="#88CCEE", label="trend")
+
+        if labels:
+            ax.set_xlabel("$t$")
+            ax.set_ylabel("$y$")
+            ax.set_title("AR(p) model PPC")
+            ax.legend(loc="upper right")
 
         if show:
             plt.show()
         return ax
 
-    def plot_posterior_params(self, ax=None, show=False):
+    def plot_posterior_params(self, k=1, ax=None, show=False):
         """
         A helper method to plot the posterior parameter distribution.
         Will raise an error if .fit hasn't been called.
@@ -153,13 +153,13 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
 
-        params = (["sigma", "nu_beta", "mu", "r"] + b_params)
-        names = (["$\\sigma^2$", "$\\mathrm{log}_{10}(\\nu_\\beta)$",
+        params = ([f"sigma[{k}]", "nu_beta", "mu", "r"] + b_params)
+        names = ([f"$\\sigma_{k}^2$", "$\\mathrm{{log}}_{{10}}(\\nu_\\beta)$",
                   "$\\mu_y$", "$r$"] + b_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
         param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
-        param_df.loc[:, "sigma"] = param_df.loc[:, "sigma"]**2
+        param_df.loc[:, f"sigma[{k}]"] = param_df.loc[:, f"sigma[{k}]"]**2
         param_df = param_df.loc[:, params]\
             .rename(rename, axis=1)
 
@@ -172,7 +172,7 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
                      "\\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
                      "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
 
-        ax[0].set_title("Parameter Posteriors")
+        ax[0].set_title(f"Parameter Posteriors for $k = {k}$")
         sns.boxplot(
             data=param_df.melt(
                 value_name="Posterior Samples",
@@ -255,7 +255,7 @@ class BayesMixtureAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         def iter_tau(name):
             return [f"{name}[{tau}]" for tau in range(1, self.p_max + 1)]
 
-        pars = ["mu", "r", "sigma", "nu_gamma", "gamma", "theta", "y0"]
+        pars = ["mu", "r", "sigma", "nu_gamma", "gamma", "theta"]
 
         print(self._fit_results.stansummary(pars))
         return
