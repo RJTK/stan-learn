@@ -1,5 +1,6 @@
 /*
- * A simple AR(p) model.
+ * AR(p) models allowing for multiple repetitions (i.e. arrays
+ * of AR models).  We fit a hierarchy over basic AR models.
  */
 
 #include ar_functions.stan
