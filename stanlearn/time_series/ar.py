@@ -75,7 +75,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def get_trend(self):
         return self._fit_results.extract("trend")["trend"]
 
-    def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False, labels=True):
+    def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False):
         if ax is None:
             fig, ax = plt.subplots(1, 1)
 
@@ -140,7 +140,7 @@ class BayesAR(BaseAR):
             raise NotImplementedError
 
         param_df = self._fit_results.to_dataframe(["b", "g", "sigma",
-                                                   "nu_beta", "mu", "r"])
+                                                   "mu", "r"])
         p = self.p
 
         g_params = [f"g[{tau}]"for tau in range(1, p + 1)]
@@ -150,13 +150,11 @@ class BayesAR(BaseAR):
 
         roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
 
-        params = ([f"sigma", "nu_beta", "mu", "r"] + g_params)
-        names = ([f"$\\sigma^2$", "$\\mathrm{{log}}_{{10}}(\\nu_\\beta)$",
-                  "$\\mu_y$", "$r$"] + g_params_tex)
+        params = (["sigma", "nu_beta", "mu", "r"] + g_params)
+        names = (["$\\sigma^2$", "$\\mu_y$", "$r$"] + g_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
-        param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
-        param_df.loc[:, f"sigma"] = param_df.loc[:, f"sigma"]**2
+        param_df.loc[:, "sigma"] = param_df.loc[:, "sigma"]**2
         param_df = param_df.loc[:, params]\
             .rename(rename, axis=1)
 
@@ -203,7 +201,7 @@ class BayesRepAR(BaseAR):
         "Fit" the model, that is, sample from the posterior.
 
         params:
-            X (n_examples, m_features): Signal to fit, T x 1
+            X (n_examples, m_features): Signal to fit, T x K
             sample_weight: NotImplemented
             stan_fitting_kwargs: To be passed to pystan's .sampling method
         """
@@ -211,79 +209,19 @@ class BayesRepAR(BaseAR):
             raise NotImplementedError("sampling weighting is not implemented.")
         T, K = X.shape
 
-        if self.normalize:
-            X = self._X_ss.fit_transform(X)
-
         data = {"T": T, "p": self.p, "y": X.T, "K": K}
-
-        fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
-        self._fit_results = self.stan_model.sampling(**fit_kwargs)
-
         pars = ["mu", "r", "sigma_hier", "sigma_rate", "sigma",
                 "nu_beta", "g_beta", "mu_beta", "g", "b"]
 
-        print(self._fit_results.stansummary(pars))
+        self.fit(data, stan_fitting_kwargs, pars)
         return
 
-    def to_arviz(self):
-        if self._fit_results is None:
-            raise ValueError("Must be fit first!")
-        fr, model = self._fit_results, self.stan_model
-        res = arviz.from_pystan(
-            posterior=fr, posterior_predictive="y_ppc",
-            observed_data=["y"], log_likelihood={"y": "y_ll"},
-            posterior_model=model)
-        return res
-
-    def predict(self, X, ret_posterior=False, **stan_fitting_kwargs):
-        """
-        Produce samples from the predictive distribution.  This can be
-        used for either prior predictive checks or for posterior
-        predictions.
-
-        params:
-            X (n_examples, m_features): Regressors
-            ret_posterior: Whether or not to return all the
-                posterior samples.  If false, we only return the
-                posterior mean, which is dramatically faster.
-            stan_fitting_kwargs: kwargs for pystan's sampling method.
-
-        returns:
-            y_hat (n_examples), y_samples (k_samples, n_examples) -- (if
-                ret_posterior=True)
-            y_hat (n_examples) -- (otherwise)
-        """
-        raise NotImplementedError
-
-    def get_ppc(self):
-        """
-        A built in PPC for every fit.
-        """
-        return self._fit_results.extract("y_ppc")["y_ppc"]
-
-    def get_trend(self):
-        return self._fit_results.extract("trend")["trend"]
-
     def plot_ppc(self, y, k=1, ax=None, show=False, labels=True):
-        if ax is None:
-            fig, ax = plt.subplots(1, 1)
-
         y_trend = self.get_trend()
         y_ppc = self.get_ppc()[:, k - 1, :]
 
-        ax.plot(y_trend.T, linewidth=0.5, color="#88CCEE", alpha=0.1)
-        ax.plot(y_ppc.T, linewidth=0.5, color="#CC6677", alpha=0.1)
-        ax.plot(y.ravel(), linewidth=2.0, color="#117733", alpha=0.8,
-                label="y")
-        ax.plot(np.mean(y_ppc, axis=0), linewidth=2.0, color="#882255",
-                alpha=0.8, label="y\_ppc")
-        ax.plot([], [], linewidth=2, color="#88CCEE", label="trend")
-
-        if labels:
-            ax.set_xlabel("$t$")
-            ax.set_ylabel("$y$")
-            ax.set_title("AR(p) model PPC")
-            ax.legend(loc="upper right")
+        super().plot_ppc(y, y_trend, y_ppc, ax=ax, show=show,
+                         labels=labels)
 
         if show:
             plt.show()
