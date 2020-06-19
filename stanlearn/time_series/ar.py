@@ -100,30 +100,29 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             plt.show()
         return ax
 
-    def plot_posterior_basic(self, param_df, k, ax):
+    def plot_posterior_basic(self, param_df, k, ax, g_proto="g[{tau}]",
+                             other_param_names=None):
         """
         Plot AR(p) parameter posteriors.
 
         param_df should contain ["g", "sigma", "mu", "r"].
         """
+        if other_param_names is None:
+            other_param_names = ["sigma", "mu", "r"]
+
         p = self.p
         param_df = pd.DataFrame(param_df)  # Copy the input
 
-        if k is None:
-            g_params = [f"g[{tau}]"for tau in range(1, p + 1)]
-            params = (["sigma", "mu", "r"] + g_params)
-        else:
-            g_params = [f"g[{k}, {tau}]"for tau in range(1, p + 1)]
-            params = ([f"sigma[{k}]",  f"mu[{k}]", f"r[{k}]"]
-                      + g_params)
+        g_params = [g_proto.format(tau=tau) for tau in range(1, p + 1)]
+        params = (other_param_names + g_params)
 
         g_params_tex = [f"$\\Gamma_{{{tau}}}$"for tau in range(1, p + 1)]
         names = (["$\\sigma^2$", "$\\mu_y$", "$r$"] + g_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
-        param_df.loc[:, "sigma"] = param_df.loc[:, "sigma"]**2
         param_df = param_df.loc[:, params]\
             .rename(rename, axis=1)
+        param_df.loc[:, "$\\sigma^2$"] = param_df.loc[:, "$\\sigma^2$"]**2
         ax.set_xticklabels(labels=ax.get_xticklabels(), rotation=300)
         ax.set_title(f"Parameter Posteriors")
 
@@ -134,7 +133,45 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             x="Parameter", y="Posterior Samples", ax=ax)
         return ax
 
-    def plot_roots(self, param_df, k, ax):
+    def plot_posterior_hier(self, param_df, ax):
+        """
+        Plot the hierarchical params of a K-repeated AR(p)
+        model.
+
+        param_df should contain ["g_hier", "sigma_hier",
+                                 "nu_g", "nu_sigma"]
+        """
+        p = self.p
+        param_df = pd.DataFrame(param_df)  # Copy the input
+
+        g_params = [f"g_hier[{tau}]"for tau in range(1, p + 1)]
+        params = (["sigma_hier", "nu_g", "nu_sigma"] + g_params)
+
+        g_params_tex = [f"$\\bar{{\\Gamma}}_{{{tau}}}$"
+                        for tau in range(1, p + 1)]
+        names = (["$\\bar{\\sigma}^2$", "$\\mathrm{log}_{10}(\\nu_\\Gamma)$",
+                  "$\\mathrm{log}_{10}(\\nu_\\sigma)$"] + g_params_tex)
+        rename = {frm: to for frm, to in zip(params, names)}
+
+        param_df.loc[:, "sigma_hier"] =\
+            param_df.loc[:, "sigma_hier"]**2
+        param_df.loc[:, "nu_g"] = np.log10(param_df.loc[:, "nu_g"])
+        param_df.loc[:, "nu_sigma"] = np.log10(param_df.loc[:, "nu_sigma"])
+
+        param_df = param_df.loc[:, params]\
+            .rename(rename, axis=1)
+        ax.set_xticklabels(labels=ax.get_xticklabels(), rotation=300)
+        ax.set_title(f"Hierarchical Parameter Posteriors")
+
+        sns.boxplot(
+            data=param_df.melt(
+                value_name="Posterior Samples",
+                var_name="Parameter"),
+            x="Parameter", y="Posterior Samples", ax=ax)
+        return
+
+    def plot_roots(self, param_df, ax, b_proto="b[{tau}]",
+                   title="System Poles"):
         """
         Plot the poles of an AR(p) model.
 
@@ -143,10 +180,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         p = self.p
         param_df = pd.DataFrame(param_df)  # Copy the input
 
-        if k is None:
-            b_params = [f"b[{tau}]"for tau in range(1, p + 1)]
-        else:
-            b_params = [f"b[{k}, {tau}]"for tau in range(1, p + 1)]
+        b_params = [b_proto.format(tau=tau) for tau in range(1, p + 1)]
 
         b = param_df.loc[:, b_params].to_numpy()
         roots = _compute_roots(b)
@@ -157,15 +191,18 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         ax.add_patch(uc)
         ax.scatter(roots.real, roots.imag, color="#882255",
                    marker="x", alpha=0.1)
-        ax.set_title("System Poles")
+        ax.set_title(title)
         ax.set_xlabel("Re")
         ax.set_ylabel("Im")
         return ax
 
 
 class BayesAR(BaseAR):
-    def __init__(self, p=1, *args, **kwargs):
-        BaseAR.__init__(self, *args, **kwargs)
+    def __init__(self, p=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
+                 n_chains=4, normalize=True):
+        BaseAR.__init__(self, n_jobs=n_jobs, warmup=warmup,
+                        samples_per_chain=samples_per_chain,
+                        n_chains=4, normalize=True)
         self.p = p
         return
 
@@ -183,8 +220,8 @@ class BayesAR(BaseAR):
         T = len(X)
 
         data = {"T": T, "p": self.p, "y": X}
-        pars = ["mu", "r", "sigma_hier", "sigma_rate", "sigma",
-                "nu_beta", "g_beta", "mu_beta", "g", "b"]
+        pars = ["mu", "r", "sigma_hier", "nu_sigma", "sigma",
+                "nu_g", "g_beta", "mu_beta", "g", "b"]
         super().fit(data, stan_fitting_kwargs, pars)
         return
 
@@ -216,8 +253,9 @@ class BayesAR(BaseAR):
         #              "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
         fig.suptitle("$\\Gamma$-parameterized AR(p) model with trend.")
 
-        super().plot_posterior_basic(param_df, k=None, ax=ax[0])
-        super().plot_roots(param_df, k=None, ax=ax[1])
+        super().plot_posterior_basic(param_df, k=None, ax=ax[0],
+                                     g_proto="g[{tau}]")
+        super().plot_roots(param_df, ax=ax[1], b_proto="b[{tau}]")
 
         if show:
             plt.show()
@@ -225,8 +263,11 @@ class BayesAR(BaseAR):
 
 
 class BayesRepAR(BaseAR):
-    def __init__(self, p=1, *args, **kwargs):
-        BaseAR.__init__(self, *args, **kwargs)
+    def __init__(self, p=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
+                 n_chains=4, normalize=True):
+        BaseAR.__init__(self, n_jobs=n_jobs, warmup=warmup,
+                        samples_per_chain=samples_per_chain,
+                        n_chains=4, normalize=True)
 
         self.p = p  # The model order
         return
@@ -246,8 +287,8 @@ class BayesRepAR(BaseAR):
         T, K = X.shape
 
         data = {"T": T, "p": self.p, "y": X.T, "K": K}
-        pars = ["mu", "r", "sigma_hier", "sigma_rate", "sigma",
-                "nu_beta", "g_beta", "mu_beta", "g", "b"]
+        pars = ["mu", "r", "sigma_hier", "nu_sigma", "sigma",
+                "nu_g", "g_beta", "mu_beta", "g", "b"]
 
         super().fit(data, stan_fitting_kwargs, pars)
         return
@@ -263,7 +304,7 @@ class BayesRepAR(BaseAR):
             plt.show()
         return ax
 
-    def plot_posterior_params(self, k=1, ax=None, show=False):
+    def plot_posterior_params(self, k=None, ax=None, show=False):
         """
         A helper method to plot the posterior parameter distribution.
         Will raise an error if .fit hasn't been called.
@@ -272,52 +313,24 @@ class BayesRepAR(BaseAR):
             raise NotImplementedError
 
         param_df = self._fit_results.to_dataframe(["b", "g", "sigma",
-                                                   "nu_beta", "mu", "r"])
-        p = self.p
-
-        g_params = [f"g[{tau}]"for tau in range(1, p + 1)]
-        g_params_tex = [f"$\\Gamma_{{{tau}}}$"for tau in range(1, p + 1)]
-
-        b_params = [f"b[{tau}]"for tau in range(1, p + 1)]
-
-        roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
-
-        params = ([f"sigma[{k}]", "nu_beta", "mu", "r"] + g_params)
-        names = ([f"$\\sigma_{k}^2$", "$\\mathrm{{log}}_{{10}}(\\nu_\\beta)$",
-                  "$\\mu_y$", "$r$"] + g_params_tex)
-        rename = {frm: to for frm, to in zip(params, names)}
-
-        param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
-        param_df.loc[:, f"sigma[{k}]"] = param_df.loc[:, f"sigma[{k}]"]**2
-        param_df = param_df.loc[:, params]\
-            .rename(rename, axis=1)
+                                                   "nu_g", "mu", "r",
+                                                   "b_hier", "g_hier",
+                                                   "sigma_hier", "nu_sigma"])
 
         fig, axes = plt.subplots(1, 2)
         ax = axes.ravel()
+        if k is not None:
+            super().plot_posterior_basic(
+                param_df, k=k, ax=ax[0], g_proto=f"g[{k},{{tau}}]",
+                other_param_names=[f"sigma[{k}]", f"mu[{k}]", f"r[{k}]"])
+            super().plot_roots(param_df, ax=ax[1], b_proto=f"b[{k},{{tau}}]")
+            fig.suptitle("$\\Gamma$-parameterized $\\mathrm{AR}(p)$ model "
+                         f"with trend.  Sample $k = {k}$")
+        else:
+            super().plot_posterior_hier(param_df, ax=ax[0])
+            super().plot_roots(param_df, ax=ax[1], b_proto="b_hier[{tau}]",
+                               title="Hierarchy Implied Poles")
 
-        # Plot parameters
-        fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + rt + "
-                     "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau), \\sigma^2); "
-                     "\\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
-                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
-        ax[0].set_xticklabels(labels=ax[0].get_xticklabels(), rotation=300)
-
-        ax[0].set_title(f"Parameter Posteriors for $k = {k}$")
-        sns.boxplot(
-            data=param_df.melt(
-                value_name="Posterior Samples",
-                var_name="Parameter"),
-            x="Parameter", y="Posterior Samples", ax=ax[0])
-
-        # Z-plot
-        uc = patches.Circle((0, 0), radius=1, fill=False,
-                            color='black', linestyle='dashed')
-        ax[1].add_patch(uc)
-        ax[1].scatter(roots.real, roots.imag, color="#882255",
-                      marker="x", alpha=0.1)
-        ax[1].set_title("System Poles")
-        ax[1].set_xlabel("Re")
-        ax[1].set_ylabel("Im")
         if show:
             plt.show()
         return ax

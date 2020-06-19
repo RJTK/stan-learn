@@ -23,7 +23,7 @@ except FileExistsError:
 def basic_example():
     # Repetitions of the same model
     p = 3  # Misspecify p
-    T = 100
+    T = 50
     sigma = 1.2
     v = sigma * np.random.normal(size=T)
     y = np.array(v)
@@ -65,7 +65,7 @@ def ar_rep_example():
     # Multiple repetitions
     p = 3  # Misspecify p
     T = 75
-    K = 12
+    K = 8
     sigma = np.random.normal(size=K)**2
     v = sigma[None, :] * np.random.normal(size=(T, K))
     y = np.array(v)
@@ -82,21 +82,22 @@ def ar_rep_example():
         y[t, :] = b1 * y[t - 1, :] + b2 * y[t - 2, :] + v[t, :]
     y = y + mu + r * np.arange(T)[:, None]
 
-    ar = BayesRepAR(normalize=False, p=p, warmup=500, samples_per_chain=500)
+    ar = BayesRepAR(normalize=False, p=p, warmup=1000,
+                    samples_per_chain=1000)
     ar.fit(y)
 
-    fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
-    for k in range(1, 4):
-        ar.plot_ppc(y[:, k - 1], k=k, show=False, ax=ax[k - 1],
-                    labels=(k == 3))
-        ax[k - 1].set_title(f"$k = {k}$")
-    fig = ax[0].figure
-    fig.suptitle("$AR(p)$ PPC")
-    # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
-    # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
-    plt.show()
+    # fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
+    # for k in range(1, 4):
+    #     ar.plot_ppc(y[:, k - 1], k=k, show=False, ax=ax[k - 1],
+    #                 labels=(k == 3))
+    #     ax[k - 1].set_title(f"$k = {k}$")
+    # fig = ax[0].figure
+    # fig.suptitle("$AR(p)$ PPC")
+    # # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
+    # # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
+    # plt.show()
 
-    axes = ar.plot_posterior_params(show=False)
+    axes = ar.plot_posterior_params(show=False, k=2)
     fig = axes[0].figure
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
@@ -104,6 +105,12 @@ def ar_rep_example():
     # fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
     # fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     fig.show()
+
+    axes = ar.plot_posterior_params(k=None)
+    axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
+                    label="True Poles", color="#117733")
+    axes[1].legend(loc="upper right")
+    plt.show()
 
     return
 
