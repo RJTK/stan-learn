@@ -11,10 +11,9 @@ data {
 }
 
 transformed data {
-  vector[p] y0;
   vector[T] t;  // "time"
   vector[p] t0;  // Time before t=0
-  for(i in 1:T + p)
+  for(i in 1:T)
     t[i] = i;
   for(i in 1:p)
     t0[i] = -p + i;
@@ -25,6 +24,7 @@ transformed data {
 parameters {
   real mu;  // Mean value
   real r;  // Linear trend coefficient
+  vector[p] y0;
   vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
   real<lower=0> sigma_hier;  // mean param hierarchy on noise level
   real<lower=0> sigma_rate;
@@ -67,6 +67,7 @@ model {
   // Should sample from the stationary distribution
   y0 ~ normal(trend0, sigma);
 
+  // The actual AR model
   y - trend ~ ar_model(y0, b, sigma);
 }
 

@@ -29,13 +29,12 @@ def _compute_roots(b):
     return np.vstack(roots)
 
 
-class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
-    def __init__(self, p=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
-                 n_chains=4, normalize=True, max_samples_mem=500):
+class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
+    def __init__(self, n_jobs=-1, warmup=1000, samples_per_chain=1000,
+                 n_chains=4, normalize=True):
         BaseEstimator.__init__(self)
         StanCacheMixin.__init__(self, MODEL_DIR)
 
-        self.p = p  # The model order
         self.stan_model, self.predict_model = self._load_compiled_models()
 
         self.stan_fitting_kwargs = {"chains": n_chains,
@@ -47,10 +46,156 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         self._fit_results = None
         self.normalize = normalize
-        self.max_samples_mem = max_samples_mem
 
         if normalize:
             self._X_ss = StandardScaler()
+        return
+
+    def fit(self, data, stan_fitting_kwargs, pars):
+        if self.normalize:
+            y = data["y"]
+            if len(y.shape) == 1:  # T x 1
+                data["y"] = self._X_ss.fit_transform(y.reshape(-1, 1)).ravel()
+            elif len(y.shape) == 2:  # T x K
+                data["y"] = self._X_ss.fit_transform(y)
+            else:
+                raise ValueError("Bad shape {} for y".format(y.shape))
+
+        fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
+        self._fit_results = self.stan_model.sampling(**fit_kwargs)
+        print(self._fit_results.stansummary(pars))
+        return
+
+    def get_ppc(self):
+        """
+        A built in PPC for every fit.
+        """
+        return self._fit_results.extract("y_ppc")["y_ppc"]
+
+    def get_trend(self):
+        return self._fit_results.extract("trend")["trend"]
+
+    def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False, labels=True):
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+
+        ax.plot(y_trend.T, linewidth=0.5, color="#88CCEE", alpha=0.1)
+        ax.plot(y_ppc.T, linewidth=0.5, color="#CC6677", alpha=0.1)
+        ax.plot(y.ravel(), linewidth=2.0, color="#117733", alpha=0.8,
+                label="y")
+        ax.plot(np.mean(y_ppc, axis=0), linewidth=2.0, color="#882255",
+                alpha=0.8, label="y\_ppc")
+        ax.plot([], [], linewidth=2, color="#88CCEE", label="trend")
+
+        if labels:
+            ax.set_xlabel("$t$")
+            ax.set_ylabel("$y$")
+            ax.set_title("AR(p) model PPC")
+            ax.legend(loc="upper right")
+
+        if show:
+            plt.show()
+        return ax
+
+
+class BayesAR(BaseAR):
+    def __init__(self, p=1, *args, **kwargs):
+        BaseAR.__init__(self, *args, **kwargs)
+        self.p = p
+        return
+
+    def fit(self, X, y=None, sample_weight=None, **stan_fitting_kwargs):
+        """
+        "Fit" the model, that is, sample from the posterior.
+
+        params:
+            X (n_examples, m_features): Signal to fit, T x 1
+            sample_weight: NotImplemented
+            stan_fitting_kwargs: To be passed to pystan's .sampling method
+        """
+        if sample_weight is not None:
+            raise NotImplementedError("sampling weighting is not implemented.")
+        T = len(X)
+
+        data = {"T": T, "p": self.p, "y": X}
+        pars = ["mu", "r", "sigma_hier", "sigma_rate", "sigma",
+                "nu_beta", "g_beta", "mu_beta", "g", "b"]
+        super().fit(data, stan_fitting_kwargs, pars)
+        return
+
+    def plot_ppc(self, y, ax=None, show=False, labels=True):
+        y_ppc = self.get_ppc()
+        y_trend = self.get_trend()
+
+        ax = super().plot_ppc(y, y_ppc, y_trend, ax=ax, show=show,
+                              labels=labels)
+        return ax
+
+    def plot_posterior_params(self, ax=None, show=False):
+        """
+        A helper method to plot the posterior parameter distribution.
+        Will raise an error if .fit hasn't been called.
+        """
+        if ax is not None:
+            raise NotImplementedError
+
+        param_df = self._fit_results.to_dataframe(["b", "g", "sigma",
+                                                   "nu_beta", "mu", "r"])
+        p = self.p
+
+        g_params = [f"g[{tau}]"for tau in range(1, p + 1)]
+        g_params_tex = [f"$\\Gamma_{{{tau}}}$"for tau in range(1, p + 1)]
+
+        b_params = [f"b[{tau}]"for tau in range(1, p + 1)]
+
+        roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
+
+        params = ([f"sigma", "nu_beta", "mu", "r"] + g_params)
+        names = ([f"$\\sigma^2$", "$\\mathrm{{log}}_{{10}}(\\nu_\\beta)$",
+                  "$\\mu_y$", "$r$"] + g_params_tex)
+        rename = {frm: to for frm, to in zip(params, names)}
+
+        param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])
+        param_df.loc[:, f"sigma"] = param_df.loc[:, f"sigma"]**2
+        param_df = param_df.loc[:, params]\
+            .rename(rename, axis=1)
+
+        fig, axes = plt.subplots(1, 2)
+        ax = axes.ravel()
+
+        # Plot parameters
+        fig.suptitle("$y(t) \\sim \\mathcal{N}(\\mu_y + rt + "
+                     "\\sum_{\\tau = 1}^p b_\\tau y(t - \\tau), \\sigma^2); "
+                     "\\frac{1}{2}(1 + \\Gamma_\\tau) \\sim "
+                     "\\beta_\\mu(\\mu_\\beta, \\nu_\\beta)$")
+        ax[0].set_xticklabels(labels=ax[0].get_xticklabels(), rotation=300)
+
+        ax[0].set_title(f"Parameter Posteriors")
+        sns.boxplot(
+            data=param_df.melt(
+                value_name="Posterior Samples",
+                var_name="Parameter"),
+            x="Parameter", y="Posterior Samples", ax=ax[0])
+
+        # Z-plot
+        uc = patches.Circle((0, 0), radius=1, fill=False,
+                            color='black', linestyle='dashed')
+        ax[1].add_patch(uc)
+        ax[1].scatter(roots.real, roots.imag, color="#882255",
+                      marker="x", alpha=0.1)
+        ax[1].set_title("System Poles")
+        ax[1].set_xlabel("Re")
+        ax[1].set_ylabel("Im")
+        if show:
+            plt.show()
+        return ax
+
+
+class BayesRepAR(BaseAR):
+    def __init__(self, p=1, *args, **kwargs):
+        BaseAR.__init__(self, *args, **kwargs)
+
+        self.p = p  # The model order
         return
 
     def fit(self, X, y=None, sample_weight=None, **stan_fitting_kwargs):

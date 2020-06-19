@@ -23,9 +23,8 @@ def basic_example():
     # Repetitions of the same model
     p = 3  # Misspecify p
     T = 100
-    K = 3
-    sigma = np.array([0.25, 1.2, 0.8] + [1.0] * (K - 3))
-    v = sigma[None, :] * np.random.normal(size=(T + p, K))
+    sigma = 1.2
+    v = sigma * np.random.normal(size=T)
     y = np.array(v)
     b1 = 0.6
     b2 = -0.8
@@ -37,19 +36,14 @@ def basic_example():
         -np.array([b1, b2] + [0.0] * (p - 2))[::-1], 1))
 
     for t in range(T):
-        y[t, :] = b1 * y[t - 1, :] + b2 * y[t - 2, :] + v[t, :]
-    y = y + mu + r * np.arange(-p, T)[:, None]
+        y[t] = b1 * y[t - 1] + b2 * y[t - 2] + v[t]
+    y = y + mu + r * np.arange(T)
 
     ar = BayesAR(normalize=False, p=p, warmup=500, samples_per_chain=500)
     ar.fit(y)
 
-    fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
-    for k in range(1, 4):
-        ar.plot_ppc(y[:, k - 1], k=k, show=False, ax=ax[k - 1],
-                    labels=(k == 3))
-        ax[k - 1].set_title(f"$k = {k}$")
-    fig = ax[0].figure
-    fig.suptitle("$AR(p)$ PPC")
+    fig, ax = plt.subplots(1, 1, sharex=True, sharey=True)
+    ar.plot_ppc(y, show=False, ax=ax)
     fig.savefig(FIGURE_DIR + "time_series_ppc.png")
     fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
@@ -66,7 +60,7 @@ def basic_example():
     return
 
 
-def basic_example2():
+def ar_rep_example()
     # Multiple repetitions
     p = 3  # Misspecify p
     T = 75
@@ -177,7 +171,7 @@ def mixture_example2():
 
     for t in range(T):
         y[t] = b1 * y[t - 1] + b2 * y[t - 2] + b3 * y[t - 3] + v[t]
-    y = y + mu + r * np.arange(-p_max, T)
+    y = y + mu + r * np.arange(T)
     y = y[p_max:].reshape(-1, 1)
 
     mu_th = np.ones(p_max + 1)  # / np.arange(1, p_max + 2)**(1./3)
