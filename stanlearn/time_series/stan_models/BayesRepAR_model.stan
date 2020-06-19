@@ -24,8 +24,8 @@ transformed data {
 }
 
 parameters {
-  real mu;  // Mean value
-  real r;  // Linear trend coefficient
+  real mu[K];  // Mean value
+  real r[K];  // Linear trend coefficient
   vector[p] y0[K];  // Initial values
   vector<lower=0, upper=1>[p] mu_beta;  // Mean vector for g_beta
   vector<lower=0, upper=1>[p] g_beta[K];  // reflection coefs
@@ -39,10 +39,12 @@ parameters {
 transformed parameters {
   vector[p] b[K];  // AR Coefficients
   vector<lower=-1, upper=1>[p] g[K];  // Reflection coefficients
-  vector[T] trend = mu + r * t;
-  vector[p] trend0 = mu + r * t0;
+  vector[T] trend[K];
+  vector[p] trend0[K];
 
   for(k in 1:K){
+    trend[k] = mu[k] + r[k] * t;
+    trend0[k] = mu[k] + r[k] * t0;
     g[k] = 2 * g_beta[k] - 1;  // transform to (-1, 1)
     b[k] = step_up(g[k]);  // Compute the actual AR coefficients
   }
@@ -53,7 +55,7 @@ model {
   vector[p] beta;
 
   for(k in 1:K)  // TODO: sample from stationary
-    y0[k] ~ normal(trend0, sigma[k]);
+    y0[k] ~ normal(trend0[k], sigma[k]);
 
   // Noise level in the signal
   sigma_hier ~ normal(0, 1);
@@ -68,19 +70,19 @@ model {
   for(k in 1:K)
     g_beta[k] ~ beta(alpha, beta);  // in (0, 1)
 
-  // trend parameters
+  // trend parameters -- no hierarchy on these
   r ~ normal(0, 2);  // The linear time coefficient
   mu ~ normal(0, 2);  // A mean offset
 
   for(k in 1:K)
-    y[k] - trend ~ ar_model(y0[k], b[k], sigma[k]);
+    y[k] - trend[k] ~ ar_model(y0[k], b[k], sigma[k]);
 }
 
 generated quantities {
   vector[T] y_ppc[K];
   real y_ll[K];
   for(k in 1:K){
-    y_ll[k] = ar_model_lpdf(y[k] - trend | y0[k], b[k], sigma[k]);
-    y_ppc[k] = trend + ar_model_rng(y[k], y0[k], b[k], sigma[k]);
+    y_ll[k] = ar_model_lpdf(y[k] - trend[k] | y0[k], b[k], sigma[k]);
+    y_ppc[k] = trend[k] + ar_model_rng(y[k], y0[k], b[k], sigma[k]);
   }
 }
