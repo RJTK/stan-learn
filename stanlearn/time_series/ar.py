@@ -11,6 +11,8 @@ from numpy.polynomial.polynomial import polyroots
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.preprocessing import StandardScaler
 
+import arviz
+
 from stanlearn.base import StanCacheMixin
 
 try:
@@ -67,19 +69,26 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         if self.normalize:
             X = self._X_ss.fit_transform(X)
 
-        data = {"Tfull": T, "p": self.p, "yfull": X.T, "K": K}
+        data = {"T": T, "p": self.p, "y": X.T, "K": K}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
-
-        def iter_tau(name):
-            return [f"{name}[{tau}]" for tau in range(1, self.p + 1)]
 
         pars = ["mu", "r", "sigma_hier", "sigma_rate", "sigma",
                 "nu_beta", "g_beta", "mu_beta", "g", "b"]
 
         print(self._fit_results.stansummary(pars))
         return
+
+    def to_arviz(self):
+        if self._fit_results is None:
+            raise ValueError("Must be fit first!")
+        fr, model = self._fit_results, self.stan_model
+        res = arviz.from_pystan(
+            posterior=fr, posterior_predictive="y_ppc",
+            observed_data=["y"], log_likelihood={"y": "y_ll"},
+            posterior_model=model)
+        return res
 
     def predict(self, X, ret_posterior=False, **stan_fitting_kwargs):
         """
@@ -113,8 +122,6 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def plot_ppc(self, y, k=1, ax=None, show=False, labels=True):
         if ax is None:
             fig, ax = plt.subplots(1, 1)
-        p = self.p
-        y = y[p:]
 
         y_trend = self.get_trend()
         y_ppc = self.get_ppc()[:, k - 1, :]
@@ -145,17 +152,20 @@ class BayesAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         if ax is not None:
             raise NotImplementedError
 
-        param_df = self._fit_results.to_dataframe()
+        param_df = self._fit_results.to_dataframe(["b", "g", "sigma",
+                                                   "nu_beta", "mu", "r"])
         p = self.p
 
+        g_params = [f"g[{tau}]"for tau in range(1, p + 1)]
+        g_params_tex = [f"$\\Gamma_{{{tau}}}$"for tau in range(1, p + 1)]
+
         b_params = [f"b[{tau}]"for tau in range(1, p + 1)]
-        b_params_tex = [f"$b_{{{tau}}}$"for tau in range(1, p + 1)]
 
         roots = _compute_roots(param_df.loc[:, b_params].to_numpy())
 
-        params = ([f"sigma[{k}]", "nu_beta", "mu", "r"] + b_params)
+        params = ([f"sigma[{k}]", "nu_beta", "mu", "r"] + g_params)
         names = ([f"$\\sigma_{k}^2$", "$\\mathrm{{log}}_{{10}}(\\nu_\\beta)$",
-                  "$\\mu_y$", "$r$"] + b_params_tex)
+                  "$\\mu_y$", "$r$"] + g_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
         param_df.loc[:, "nu_beta"] = np.log10(param_df.loc[:, "nu_beta"])

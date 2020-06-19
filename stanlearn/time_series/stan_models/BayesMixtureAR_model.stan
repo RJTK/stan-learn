@@ -43,20 +43,34 @@ parameters {
 
 transformed parameters {
   vector[n_params] b;  // AR Coefficients
+  vector[p_max + 1] lpdfs;  // mixture pdfs
+  vector[p_max + T] trend;  // trend term
+
+  // The simple trend term
+  trend = mu + r * t;
 
   {int pos = 1;
     // Compute the actual AR coefficients
     for(p in 1:p_max){
       b[pos:pos + model_size[p] - 1] = step_up(gamma[:p]);
-      pos += model_size[p];}}}
+      pos += model_size[p];}}
+
+  {int pos = 1;
+    vector[T] detrend_y = y - trend[p_max + 1:];
+    for(p in 1:p_max){
+      lpdfs[p] = theta[p] + ar_model_lpdf(detrend_y | y0[:model_size[p]],
+                                          b[pos:pos + model_size[p] - 1],
+                                          sigma);
+      pos += model_size[p];
+    }
+    lpdfs[p_max + 1] = theta[p_max + 1] + normal_lpdf(detrend_y | 0, sigma);
+  }
+}
 
 model {
   vector[p_max] alpha;  // transformed gamma prior params
   vector[p_max] beta;
   vector[p_max + 1] alpha_th;  // transformed Dirichlet prior for theta
-
-  vector[p_max + 1] lpdfs;  // mixture pdfs
-  vector[p_max + T] trend;  // trend term
 
   // real mu_gamma = 0.5;
   mu_gamma ~ uniform(0, 1);
@@ -71,8 +85,8 @@ model {
 
   // Priors for the reflection coefficients
   // mu_gamma ~ uniform(0, 1);  // A vector
-  // nu_gamma ~ inv_gamma(3, 3);
-  nu_gamma ~ exponential(1);
+  nu_gamma ~ inv_gamma(3, 3);
+  // nu_gamma ~ exponential(1);
   alpha = mu_gamma .* nu_gamma;
   beta = (1 - mu_gamma) .* nu_gamma;
 
@@ -80,36 +94,20 @@ model {
   r ~ normal(0, 2);  // The linear time coefficient
   mu ~ normal(0, 2);  // A mean offset
 
-  // The simple trend term
-  trend = mu + r * t;
-
   // Initial values
   y0 ~ normal(trend[:p_max], sigma);
 
   // Mixture AR(p), including "AR(0)" (pure noise)
-  {int pos = 1;
-    vector[T] detrend_y = y - trend[p_max + 1:];
-    for(p in 1:p_max){
-      lpdfs[p] = theta[p] + ar_model_lpdf(detrend_y | y0[:model_size[p]],
-                                          b[pos:pos + model_size[p] - 1],
-                                          sigma);
-      pos += model_size[p];
-    }
-    lpdfs[p_max + 1] = theta[p_max + 1] + normal_lpdf(detrend_y | 0, sigma);
-  }
-
   target += beta_lpdf(0.5 * (1 + gamma) | alpha, beta);  // in (0, 1)
   target += log_sum_exp(lpdfs);
 }
 
 generated quantities {
   vector[T] y_ppc;
-  vector[T] trend;  // trend term
-  int p = categorical_rng(theta);
+  int p = categorical_rng(softmax(lpdfs));  // posterior mixture distr.
   int pos;
 
-  trend = mu + r * t[p_max + 1:];
-  y_ppc = trend;
+  y_ppc = trend[p_max + 1:];
 
   if(p == 1){  // AR(1)
     y_ppc += ar_model_rng(y, y0[:1], b[:1], sigma);
@@ -120,6 +118,7 @@ generated quantities {
   }
   else{  // AR(p), p > 1
     pos = 1 + sum(model_size[:p - 1]);
-    y_ppc += ar_model_rng(y, y0[:model_size[p]], b[pos:pos + model_size[p] - 1], sigma);
+    y_ppc += ar_model_rng(y, y0[:model_size[p]],
+                          b[pos:pos + model_size[p] - 1], sigma);
   }
 }

@@ -56,6 +56,8 @@ functions {
     y_full[p + 1:] = y;
 
     // A Toeplitz type would be a huge boon to this calculation
+    // surprisingly though using make_toeplitz, even if it's kept
+    // fixed by non-random y0, doesn't seem to help.
     for(t in 1:T){
       y_hat[t] = dot_product(b_rev, y_full[t:t + p - 1]);
     }
@@ -77,40 +79,3 @@ functions {
     return y_rng;
   }
 }
-
-
-// Toeplitz, no data xform, possibly incorrect implementation as it
-// didn't really converge
-// Gradient evaluation took 0.00305 seconds  <-- this one is wicked slow, why?
-// Gradient evaluation took 0.000942 seconds
-// Gradient evaluation took 0.000992 seconds
-// Gradient evaluation took 0.000871 seconds
-
-// Elapsed Time: 114.071 seconds (Warm-up)
-//               36.8113 seconds (Sampling)
-//               150.882 seconds (Total)
-
-// Elapsed Time: 152.077 seconds (Warm-up)
-//               165.682 seconds (Sampling)
-//               317.76 seconds (Total)
-
-// Elapsed Time: 200.176 seconds (Warm-up)
-//               132.684 seconds (Sampling)
-//               332.859 seconds (Total)
-
-// Elapsed Time: 467.977 seconds (Warm-up)
-//               167.19 seconds (Sampling)
-//               635.167 seconds (Total)
-
-// with reverse
-// Gradient evaluation took 0.000631 seconds
-// Gradient evaluation took 0.000633 seconds
-// Gradient evaluation took 0.000631 seconds
-// Gradient evaluation took 0.000656 seconds
-
-// Gradient evaluation took 0.000597 seconds
-// Gradient evaluation took 0.001058 seconds
-// Gradient evaluation took 0.000797 seconds
-// Gradient evaluation took 0.003106 seconds
-
-

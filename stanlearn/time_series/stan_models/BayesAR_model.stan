@@ -5,29 +5,27 @@
 #include ar_functions.stan
 
 data {
-  int<lower=1> Tfull;  // Number of examples
+  int<lower=1> T;  // Number of examples
   int<lower=1> K;  // Number of realizations
   int<lower=1> p;  // The model order
-  vector[Tfull] yfull[K];  // the data series y(t)
-  // vector[Tfull] yfull;  // the data series y(t)
+  vector[T] y[K];  // the data series y(t)
 }
 
 transformed data {
-  int<lower=1> T = Tfull - p;
-  vector[T] y[K];
-  vector[p] y0[K];
   vector[T] t;  // "time"
-  for (i in 1:T)
+  vector[p] t0;  // Initial time
+  for(i in 1:T)
     t[i] = i;
-  t = t / T;  // Normalize to between [0, 1]
-
-  y0 = yfull[:, :p];
-  y = yfull[:, p + 1:];
+  for(i in 1:p)
+    t0[i] = i - p;
+  t = t / T;  // Normalize to between [1/T, 1]
+  t0 = t0 / T;  // Normalize to [-(p - 1)/T, 0]
 }
 
 parameters {
   real mu;  // Mean value
   real r;  // Linear trend coefficient
+  vector[p] y0[K];  // Initial values
   vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
   real<lower=0> sigma_hier;  // mean param hierarchy on noise level
   real<lower=0> sigma_rate;
@@ -41,6 +39,7 @@ transformed parameters {
   vector[p] b;  // AR Coefficients
   vector<lower=-1, upper=1>[p] g;  // Reflection coefficients
   vector[T] trend = mu + r * t;
+  vector[p] trend0 = mu + r * t0;
 
   g = 2 * g_beta - 1;  // transform to (-1, 1)
   b = step_up(g);  // Compute the actual AR coefficients
@@ -49,6 +48,9 @@ transformed parameters {
 model {
   vector[p] alpha;  // Params for beta prior on g
   vector[p] beta;
+
+  for(k in 1:K)  // TODO: sample from stationary
+    y0[k] ~ normal(trend0, sigma[k]);
 
   // Noise level in the signal
   sigma_hier ~ normal(0, 1);
@@ -72,6 +74,9 @@ model {
 
 generated quantities {
   vector[T] y_ppc[K];
-  for(k in 1:K)
+  real y_ll[K];
+  for(k in 1:K){
+    y_ll[k] = ar_model_lpdf(y[k] - trend | y0[k], b, sigma[k]);
     y_ppc[k] = trend + ar_model_rng(y[k], y0[k], b, sigma[k]);
+  }
 }
