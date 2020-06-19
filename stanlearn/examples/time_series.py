@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial.polynomial import polyroots
 
-from stanlearn.time_series import BayesAR, BayesMixtureAR
+from stanlearn.time_series import (BayesAR, BayesRepAR,
+                                   BayesMixtureAR)
 
 try:
     FIGURE_DIR = os.path.join(os.path.dirname(__file__),
@@ -60,13 +61,13 @@ def basic_example():
     return
 
 
-def ar_rep_example()
+def ar_rep_example():
     # Multiple repetitions
     p = 3  # Misspecify p
     T = 75
     K = 12
     sigma = np.random.normal(size=K)**2
-    v = sigma[None, :] * np.random.normal(size=(T + p, K))
+    v = sigma[None, :] * np.random.normal(size=(T, K))
     y = np.array(v)
     b1 = 0.6
     b2 = -0.8
@@ -79,9 +80,9 @@ def ar_rep_example()
 
     for t in range(T):
         y[t, :] = b1 * y[t - 1, :] + b2 * y[t - 2, :] + v[t, :]
-    y = y + mu + r * np.arange(-p, T)[:, None]
+    y = y + mu + r * np.arange(T)[:, None]
 
-    ar = BayesAR(normalize=False, p=p, warmup=500, samples_per_chain=500)
+    ar = BayesRepAR(normalize=False, p=p, warmup=500, samples_per_chain=500)
     ar.fit(y)
 
     fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
@@ -91,8 +92,8 @@ def ar_rep_example()
         ax[k - 1].set_title(f"$k = {k}$")
     fig = ax[0].figure
     fig.suptitle("$AR(p)$ PPC")
-    fig.savefig(FIGURE_DIR + "time_series_ppc.png")
-    fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
     axes = ar.plot_posterior_params(show=False)
@@ -100,9 +101,10 @@ def ar_rep_example()
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")
-    fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
-    fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
+    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
+    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     fig.show()
+
     return
 
 

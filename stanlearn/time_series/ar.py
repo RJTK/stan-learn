@@ -75,7 +75,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
     def get_trend(self):
         return self._fit_results.extract("trend")["trend"]
 
-    def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False):
+    def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False, labels=True):
         if ax is None:
             fig, ax = plt.subplots(1, 1)
 
@@ -206,21 +206,22 @@ class BayesRepAR(BaseAR):
             stan_fitting_kwargs: To be passed to pystan's .sampling method
         """
         if sample_weight is not None:
-            raise NotImplementedError("sampling weighting is not implemented.")
+            raise NotImplementedError("sample weighting is not implemented.")
+
         T, K = X.shape
 
         data = {"T": T, "p": self.p, "y": X.T, "K": K}
         pars = ["mu", "r", "sigma_hier", "sigma_rate", "sigma",
                 "nu_beta", "g_beta", "mu_beta", "g", "b"]
 
-        self.fit(data, stan_fitting_kwargs, pars)
+        super().fit(data, stan_fitting_kwargs, pars)
         return
 
     def plot_ppc(self, y, k=1, ax=None, show=False, labels=True):
         y_trend = self.get_trend()
         y_ppc = self.get_ppc()[:, k - 1, :]
 
-        super().plot_ppc(y, y_trend, y_ppc, ax=ax, show=show,
+        super().plot_ppc(y, y_ppc, y_trend, ax=ax, show=show,
                          labels=labels)
 
         if show:

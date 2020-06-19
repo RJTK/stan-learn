@@ -73,5 +73,7 @@ model {
 
 generated quantities {
   vector[T] y_ppc;
+  real y_ll;
+  y_ll = ar_model_lpdf(y - trend | y0, b, sigma);
   y_ppc = trend + ar_model_rng(y, y0, b, sigma);
 }
