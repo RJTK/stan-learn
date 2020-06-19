@@ -24,15 +24,20 @@ transformed data {
 }
 
 parameters {
+  // Trend term
+  // real mu_hier;  // Hierarchy for trend params
+  // real r_hier;
+  real<lower=0> lambda;  // Magnitude for r, mu
   real mu[K];  // Mean value
   real r[K];  // Linear trend coefficient
+
+  // AR(p)[K]
   vector[p] y0[K];  // Initial values
-  vector<lower=0, upper=1>[p] mu_beta;  // Mean vector for g_beta
-  vector<lower=0, upper=1>[p] g_beta[K];  // reflection coefs
   real<lower=0> sigma_hier;  // mean param hierarchy on noise level
   real<lower=0> nu_sigma;
+  vector<lower=0, upper=1>[p] mu_beta;  // Mean vector for g_beta
+  vector<lower=0, upper=1>[p] g_beta[K];  // reflection coefs
   real<lower=0> sigma[K];  // noise level
-
   real<lower=0> nu_g;  // pseudo-samples on g_beta
 }
 
@@ -58,7 +63,7 @@ model {
     y0[k] ~ normal(trend0[k], sigma[k]);
 
   // Noise level in the signal
-  sigma_hier ~ normal(0, 1);
+  sigma_hier ~ inv_gamma(1, 1);
   nu_sigma ~ exponential(1);
   sigma ~ gamma(sigma_hier * nu_sigma, nu_sigma);
 
@@ -71,8 +76,13 @@ model {
     g_beta[k] ~ beta(alpha, beta);  // in (0, 1)
 
   // trend parameters -- no hierarchy on these
-  r ~ normal(0, 2);  // The linear time coefficient
-  mu ~ normal(0, 2);  // A mean offset
+  // r_hier ~ normal(0, 1);
+  // mu_hier ~ normal(0, 1);
+  lambda ~ exponential(1);
+  // r ~ normal(r_hier, lambda);  // The linear time coefficient
+  // mu ~ normal(mu_hier, lambda);  // A mean offset
+  r ~ normal(0, lambda);
+  mu ~ normal(0, lambda);
 
   for(k in 1:K)
     y[k] - trend[k] ~ ar_model(y0[k], b[k], sigma[k]);

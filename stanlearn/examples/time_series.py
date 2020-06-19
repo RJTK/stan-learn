@@ -23,7 +23,7 @@ except FileExistsError:
 def basic_example():
     # Repetitions of the same model
     p = 3  # Misspecify p
-    T = 50
+    T = 500
     sigma = 1.2
     v = sigma * np.random.normal(size=T)
     y = np.array(v)
@@ -45,8 +45,8 @@ def basic_example():
 
     fig, ax = plt.subplots(1, 1, sharex=True, sharey=True)
     ar.plot_ppc(y, show=False, ax=ax)
-    fig.savefig(FIGURE_DIR + "time_series_ppc.png")
-    fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
     axes = ar.plot_posterior_params(show=False)
@@ -54,24 +54,27 @@ def basic_example():
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")
-    fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
-    fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
+    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.png")
+    # fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     fig.show()
 
+    ax = ar.plot_ll_trace(show=True)
     return
 
 
 def ar_rep_example():
     # Multiple repetitions
     p = 3  # Misspecify p
-    T = 75
-    K = 8
-    sigma = np.random.normal(size=K)**2
+    T = 15
+    K = 20
+    sigma = 0.5 + np.random.uniform(size=K)**2
     v = sigma[None, :] * np.random.normal(size=(T, K))
     y = np.array(v)
     b1 = 0.6
     b2 = -0.8
 
+    # mu = -0.7
+    # r = 1.2 / T
     mu = -0.7
     r = 1.2 / T
 
@@ -86,18 +89,21 @@ def ar_rep_example():
                     samples_per_chain=1000)
     ar.fit(y)
 
-    # fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
-    # for k in range(1, 4):
-    #     ar.plot_ppc(y[:, k - 1], k=k, show=False, ax=ax[k - 1],
-    #                 labels=(k == 3))
-    #     ax[k - 1].set_title(f"$k = {k}$")
-    # fig = ax[0].figure
-    # fig.suptitle("$AR(p)$ PPC")
-    # # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
-    # # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
-    # plt.show()
+    fig, ax = plt.subplots(4, 1, sharex=True, sharey=True)
+    for k in range(1, 5):
+        ar.plot_ppc(y, k=k, show=False, ax=ax[k - 1],
+                    labels=(k == 3))
+        ax[k - 1].set_title(f"$k = {k}$")
+    fig = ax[0].figure
+    fig.suptitle("$AR(p)$ PPC")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.png")
+    # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
+    plt.show()
 
-    axes = ar.plot_posterior_params(show=False, k=2)
+    ar.plot_ppc(y, k=4, show=True)
+
+    # Posterior for particular k
+    axes = ar.plot_posterior_params(show=False, k=4)
     fig = axes[0].figure
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
@@ -106,12 +112,14 @@ def ar_rep_example():
     # fig.savefig(FIGURE_DIR + "time_series_param_posterior.pdf")
     fig.show()
 
+    # Posterior for the hierarchical params
     axes = ar.plot_posterior_params(k=None)
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")
     plt.show()
 
+    ar.plot_ll_trace(show=True)
     return
 
 

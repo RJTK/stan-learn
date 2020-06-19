@@ -50,19 +50,18 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         self.normalize = normalize
         self.p = None
 
-        if normalize:
-            self._X_ss = StandardScaler()
+        # For transformations
+        self._mean = 0
+        self._scale = 0
         return
 
     def fit(self, data, stan_fitting_kwargs, pars):
         if self.normalize:
-            y = data["y"]
-            if len(y.shape) == 1:  # T x 1
-                data["y"] = self._X_ss.fit_transform(y.reshape(-1, 1)).ravel()
-            elif len(y.shape) == 2:  # T x K
-                data["y"] = self._X_ss.fit_transform(y)
-            else:
-                raise ValueError("Bad shape {} for y".format(y.shape))
+            # Don't scale columns independently
+            # I want to keep the relative scales
+            self._mean = np.mean(data["y"])
+            self._scale = np.std(data["y"])
+            data["y"] = (data["y"] - self._mean) / self._scale
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sampling(**fit_kwargs)
@@ -73,10 +72,41 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         """
         A built in PPC for every fit.
         """
-        return self._fit_results.extract("y_ppc")["y_ppc"]
+        y_ppc = self._fit_results.extract("y_ppc")["y_ppc"]
+        if self.normalize:
+            y_ppc = self._scale * (y_ppc + self._mean)
+        return y_ppc
 
     def get_trend(self):
-        return self._fit_results.extract("trend")["trend"]
+        y_trend = self._fit_results.extract("trend")["trend"]
+        if self.normalize:
+            y_trend = self._scale * (y_trend + self._mean)
+        return y_trend
+
+    def plot_ll_trace(self, ax=None, show=False):
+        """
+        This function can hopefully help to diagnose obvious
+        sampling problems like a chain getting stuck.
+        """
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+
+        y_ll = self._fit_results.extract("y_ll", permuted=False)["y_ll"]
+        if len(y_ll.shape) > 2:
+            y_ll = np.sum(y_ll, axis=2)
+
+        y_ll = y_ll - np.mean(y_ll)
+        t = np.arange(y_ll.shape[0] * y_ll.shape[1])
+        t = t.reshape(y_ll.shape[1], y_ll.shape[0]).T
+        for i in range(y_ll.shape[1]):
+            ax.plot(t[:, i], y_ll[:, i], alpha=0.75, label=f"Chain {i}")
+        ax.set_xlabel("Sample")
+        ax.set_ylabel("Model Log-Likelihood")
+        ax.set_title("Log-Likelihood Traceplot")
+        ax.legend()
+        if show:
+            plt.show()
+        return ax
 
     def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False, labels=True):
         if ax is None:
@@ -139,18 +169,21 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         model.
 
         param_df should contain ["g_hier", "sigma_hier",
-                                 "nu_g", "nu_sigma"]
+                                 "nu_g", "nu_sigma", "lambda"]
         """
         p = self.p
         param_df = pd.DataFrame(param_df)  # Copy the input
 
         g_params = [f"g_hier[{tau}]"for tau in range(1, p + 1)]
-        params = (["sigma_hier", "nu_g", "nu_sigma"] + g_params)
+        params = (["sigma_hier", "nu_g", "nu_sigma", "lambda"]
+                  + g_params)
 
         g_params_tex = [f"$\\bar{{\\Gamma}}_{{{tau}}}$"
                         for tau in range(1, p + 1)]
         names = (["$\\bar{\\sigma}^2$", "$\\mathrm{log}_{10}(\\nu_\\Gamma)$",
-                  "$\\mathrm{log}_{10}(\\nu_\\sigma)$"] + g_params_tex)
+                  "$\\mathrm{log}_{10}(\\nu_\\sigma)$",
+                  "$\\bar{\\lambda}$"]
+                 + g_params_tex)
         rename = {frm: to for frm, to in zip(params, names)}
 
         param_df.loc[:, "sigma_hier"] =\
@@ -220,8 +253,7 @@ class BayesAR(BaseAR):
         T = len(X)
 
         data = {"T": T, "p": self.p, "y": X}
-        pars = ["mu", "r", "sigma_hier", "nu_sigma", "sigma",
-                "nu_g", "g_beta", "mu_beta", "g", "b"]
+        pars = ["mu", "r", "sigma", "g", "b"]
         super().fit(data, stan_fitting_kwargs, pars)
         return
 
@@ -288,16 +320,16 @@ class BayesRepAR(BaseAR):
 
         data = {"T": T, "p": self.p, "y": X.T, "K": K}
         pars = ["mu", "r", "sigma_hier", "nu_sigma", "sigma",
-                "nu_g", "g_beta", "mu_beta", "g", "b"]
+                "nu_g", "g_beta", "mu_beta", "g", "b", "lambda"]
 
         super().fit(data, stan_fitting_kwargs, pars)
         return
 
     def plot_ppc(self, y, k=1, ax=None, show=False, labels=True):
-        y_trend = self.get_trend()
+        y_trend = self.get_trend()[:, k - 1, :]
         y_ppc = self.get_ppc()[:, k - 1, :]
 
-        super().plot_ppc(y, y_ppc, y_trend, ax=ax, show=show,
+        super().plot_ppc(y[:, k - 1], y_ppc, y_trend, ax=ax, show=show,
                          labels=labels)
 
         if show:
@@ -315,7 +347,8 @@ class BayesRepAR(BaseAR):
         param_df = self._fit_results.to_dataframe(["b", "g", "sigma",
                                                    "nu_g", "mu", "r",
                                                    "b_hier", "g_hier",
-                                                   "sigma_hier", "nu_sigma"])
+                                                   "sigma_hier", "nu_sigma",
+                                                   "lambda"])
 
         fig, axes = plt.subplots(1, 2)
         ax = axes.ravel()

@@ -26,12 +26,7 @@ parameters {
   real r;  // Linear trend coefficient
   vector[p] y0;
   vector<lower=0, upper=1>[p] g_beta;  // For the reflection coefficients
-  real<lower=0> sigma_hier;  // mean param hierarchy on noise level
-  real<lower=0> nu_sigma;
   real<lower=0> sigma;  // noise level
-
-  vector<lower=0, upper=1>[p] mu_beta;  // Mean vector for g_beta
-  real<lower=0> nu_g;  // pseudo-samples on g_beta
 }
 
 transformed parameters {
@@ -49,20 +44,14 @@ model {
   vector[p] beta;
 
   // Noise level in the signal
-  sigma_hier ~ normal(0, 1);
-  nu_sigma ~ exponential(1);
-  sigma ~ gamma(sigma_hier * nu_sigma, nu_sigma);
+  sigma ~ inv_gamma(1, 1);
 
-  // Priors for the reflection coefficients
-  mu_beta ~ uniform(0, 1);  // A p-vector
-  nu_g ~ inv_gamma(3, 3);  // keep (alpha, beta) > 1 else we get a U shape
-  alpha = mu_beta * nu_g;
-  beta = (1 - mu_beta) * nu_g;
-  g_beta ~ beta(alpha, beta);  // in (0, 1)
+  // Prior for the reflection coefficients
+  g_beta ~ uniform(0, 1);
 
   // trend parameters
-  r ~ normal(0, 2);  // The linear time coefficient
-  mu ~ normal(0, 2);  // A mean offset
+  r ~ normal(0, 1);  // The linear time coefficient
+  mu ~ normal(0, 1);  // A mean offset
 
   // Should sample from the stationary distribution
   y0 ~ normal(trend0, sigma);
