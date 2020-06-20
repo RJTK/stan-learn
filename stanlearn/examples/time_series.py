@@ -23,7 +23,7 @@ except FileExistsError:
 def basic_example():
     # Repetitions of the same model
     p = 3  # Misspecify p
-    T = 500
+    T = 100
     sigma = 1.2
     v = sigma * np.random.normal(size=T)
     y = np.array(v)
@@ -100,10 +100,8 @@ def ar_rep_example():
     # fig.savefig(FIGURE_DIR + "time_series_ppc.pdf")
     plt.show()
 
-    ar.plot_ppc(y, k=4, show=True)
-
     # Posterior for particular k
-    axes = ar.plot_posterior_params(show=False, k=4)
+    axes = ar.plot_posterior_params(show=False, k=2)
     fig = axes[0].figure
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
@@ -125,7 +123,7 @@ def ar_rep_example():
 
 def mixture_example1():
     p_max = 5
-    T = 1000
+    T = 50
     v = 0.25 * np.random.normal(size=T + p_max)
     y = np.array(v)
     b1 = 1.6
@@ -140,7 +138,6 @@ def mixture_example1():
     for t in range(T):
         y[t] = b1 * y[t - 1] + b2 * y[t - 2] + v[t]
     y = y + mu + r * np.arange(-p_max, T)
-    y = y[p_max:].reshape(-1, 1)
 
     nu_th = 3  # Priors for model order
     mu_th = 1. / np.arange(1, p_max + 2)**(1./3)
@@ -156,10 +153,7 @@ def mixture_example1():
     fig.savefig(FIGURE_DIR + "mixture_time_series_ppc.pdf")
     plt.show()
 
-    fig, axes = plt.subplots(1, 2)
-    axes = axes.ravel()
-    ar.plot_posterior_params(show=False, ax=axes[0])
-    ar.plot_poles(p=None, show=False, ax=axes[1])
+    axes = ar.plot_posterior_params(show=False)
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")

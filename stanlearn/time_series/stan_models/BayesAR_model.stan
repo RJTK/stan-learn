@@ -46,8 +46,8 @@ model {
   // Noise level in the signal
   sigma ~ inv_gamma(1, 1);
 
-  // Prior for the reflection coefficients
-  g_beta ~ uniform(0, 1);
+  // Uniform prior on reflection coefficients
+  g ~ uniform(-1, 1);
 
   // trend parameters
   r ~ normal(0, 1);  // The linear time coefficient
