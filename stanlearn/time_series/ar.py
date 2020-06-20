@@ -258,7 +258,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         ax[1].set_title("$\\angle H(j\\omega)$")
         ax[1].set_xlabel("Frequency [Rad / sample]")
-        ax[1].set_ylabel("Angle [Rad]")
+        ax[1].set_ylabel("Phase [Rad]")
 
         fig.suptitle(title)
 
@@ -341,9 +341,8 @@ class BayesAR(BaseAR):
         fig, axes = plt.subplots(1, 2)
         ax = axes.ravel()
 
-        super().plot_spectrum(param_df, b_proto="b[{tau}]", gain="sigma")
-        if show:
-            plt.show()
+        super().plot_spectrum(param_df, b_proto="b[{tau}]", gain="sigma",
+                              show=show)
         return ax
 
 
@@ -441,19 +440,21 @@ class BayesRepAR(BaseAR):
         if ax is not None:
             raise NotImplementedError
 
+        p = self.p
+
         if k is not None:
             param_df = self._fit_results.to_dataframe(["b", "sigma"])
             b_proto = f"b[{k},{{tau}}]"
             gain = f"sigma[{k}]"
-            title = f"$AR(p)$ Spectrum for $k = {k}$"
+            title = f"$AR({p})$ Spectrum for $k = {k}$"
         else:
             param_df = self._fit_results.to_dataframe(["b_hier", "sigma_hier"])
             b_proto = "b_hier[{tau}]"
             gain = "sigma_hier"
-            title = "Hierarchical $AR(p)$ Spectrum"
+            title = f"Hierarchical $AR({p})$ Spectrum"
 
         ax = super().plot_spectrum(param_df, b_proto=b_proto, gain=gain,
-                                   title=title, ax=ax)
+                                   title=title, ax=ax, show=show)
         return ax
 
 
