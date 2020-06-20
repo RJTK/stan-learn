@@ -32,8 +32,6 @@ parameters {
 transformed parameters {
   vector[p] b;  // AR Coefficients
   vector<lower=-1, upper=1>[p] g;  // Reflection coefficients
-  vector[T] trend = mu + r * t;
-  vector[p] trend0 = mu + r * t0;
 
   g = 2 * g_beta - 1;  // transform to (-1, 1)
   b = step_up(g);  // Compute the actual AR coefficients
@@ -42,6 +40,8 @@ transformed parameters {
 model {
   vector[p] alpha;  // Params for beta prior on g
   vector[p] beta;
+  vector[T] trend;
+  vector[p] trend0;
 
   // Noise level in the signal
   sigma ~ inv_gamma(1, 1);
@@ -53,6 +53,9 @@ model {
   r ~ normal(0, 1);  // The linear time coefficient
   mu ~ normal(0, 1);  // A mean offset
 
+  trend = mu + r * t;
+  trend0 = mu + r * t0;
+
   // Should sample from the stationary distribution
   y0 ~ normal(trend0, sigma);
 
@@ -63,6 +66,12 @@ model {
 generated quantities {
   vector[T] y_ppc;
   real y_ll;
+  vector[T] trend;
+  vector[p] trend0;
+
+  trend = mu + r * t;
+  trend0 = mu + r * t0;
+
   y_ll = ar_model_lpdf(y - trend | y0, b, sigma);
   y_ppc = trend + ar_model_rng(y, y0, b, sigma);
 }

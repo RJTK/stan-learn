@@ -28,8 +28,8 @@ parameters {
   // real mu_hier;  // Hierarchy for trend params
   // real r_hier;
   real<lower=0> lambda;  // Magnitude for r, mu
-  real mu[K];  // Mean value
-  real r[K];  // Linear trend coefficient
+  real mu_nc[K];  // Mean value NC-param
+  real r_nc[K];  // Linear trend coefficient NC-param
 
   // AR(p)[K]
   vector[p] y0[K];  // Initial values
@@ -44,12 +44,12 @@ parameters {
 transformed parameters {
   vector[p] b[K];  // AR Coefficients
   vector<lower=-1, upper=1>[p] g[K];  // Reflection coefficients
-  vector[T] trend[K];
-  vector[p] trend0[K];
+  real mu[K];  // Mean value
+  real r[K];  // Linear trend coefficient
 
   for(k in 1:K){
-    trend[k] = mu[k] + r[k] * t;
-    trend0[k] = mu[k] + r[k] * t0;
+    mu[k] = mu_nc[k] * lambda;
+    r[k] = r_nc[k] * lambda;
     g[k] = 2 * g_beta[k] - 1;  // transform to (-1, 1)
     b[k] = step_up(g[k]);  // Compute the actual AR coefficients
   }
@@ -58,9 +58,8 @@ transformed parameters {
 model {
   vector[p] alpha;  // Params for beta prior on g
   vector[p] beta;
-
-  for(k in 1:K)  // TODO: sample from stationary
-    y0[k] ~ normal(trend0[k], sigma[k]);
+  vector[T] trend[K];
+  vector[p] trend0[K];
 
   // Noise level in the signal
   sigma_hier ~ inv_gamma(1, 1);
@@ -75,14 +74,20 @@ model {
   for(k in 1:K)
     g_beta[k] ~ beta(alpha, beta);  // in (0, 1)
 
-  // trend parameters -- no hierarchy on these
+  // trend parameters -- non-centered hierarchical parameterization
   // r_hier ~ normal(0, 1);
   // mu_hier ~ normal(0, 1);
   lambda ~ exponential(1);
-  // r ~ normal(r_hier, lambda);  // The linear time coefficient
-  // mu ~ normal(mu_hier, lambda);  // A mean offset
-  r ~ normal(0, lambda);
-  mu ~ normal(0, lambda);
+  r_nc ~ normal(0, 1);
+  mu_nc ~ normal(0, 1);
+
+  for(k in 1:K){
+    trend[k] = mu[k] + r[k] * t;
+    trend0[k] = mu[k] + r[k] * t0;
+  }
+
+  for(k in 1:K)  // TODO: sample from stationary
+    y0[k] ~ normal(trend0[k], sigma[k]);
 
   for(k in 1:K)
     y[k] - trend[k] ~ ar_model(y0[k], b[k], sigma[k]);
@@ -92,7 +97,14 @@ generated quantities {
   vector<lower=-1, upper=1>[p] g_hier;  // Hierarchical refl coefs
   vector[p] b_hier;  // Hierarchical implied AR coefs
   vector[T] y_ppc[K];
+  vector[T] trend[K];
+  vector[p] trend0[K];
   real y_ll[K];
+
+  for(k in 1:K){
+    trend[k] = mu[k] + r[k] * t;
+    trend0[k] = mu[k] + r[k] * t0;
+  }
 
   g_hier = 2 * mu_beta - 1;
   b_hier = step_up(g_hier);  // Compute the actual AR coefficients

@@ -8,6 +8,7 @@ from matplotlib import patches
 import numpy as np
 import pandas as pd
 from numpy.polynomial.polynomial import polyroots
+from scipy.signal import freqz
 
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.preprocessing import StandardScaler
@@ -23,10 +24,20 @@ except NameError:  # no __file__ when interactive
     MODEL_DIR = "./stan_models/"
 
 
+def _reorder_Bz(b):
+    """
+    Organizes b into B(z) = 1 + b[1]z^{-1} + ... + b[p]z^{-p}
+
+    This is descending powers of z^{-1}
+    """
+    return np.hstack((np.ones(len(b)).reshape(-1, 1),
+                      -np.atleast_2d(b)))
+
+
 def _compute_roots(b):
     roots = []
-    for bi in b:
-        roots.append(polyroots(np.append(-bi[::-1], 1)))
+    for bi in _reorder_Bz(b)[:, ::-1]:
+        roots.append(polyroots(bi))
     return np.vstack(roots)
 
 
@@ -44,7 +55,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
                                     "warmup": warmup, "init": "random",
                                     "init_r": 1.0, "n_jobs": n_jobs,
                                     "control": {"metric": "diag_e",
-                                                "adapt_delta": 0.9}}
+                                                "adapt_delta": 0.8}}
 
         self._fit_results = None
         self.normalize = normalize
@@ -180,53 +191,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             x="Parameter", y="Posterior Samples", ax=ax)
         return ax
 
-    def plot_posterior_hier(self, param_df, ax):
-        """
-        Plot the hierarchical params of a K-repeated AR(p)
-        model.
-
-        param_df should contain ["g_hier", "sigma_hier",
-                                 "nu_g", "nu_sigma", "lambda"]
-        """
-        p = self.p
-        param_df = pd.DataFrame(param_df)  # Copy the input
-
-        g_params = [f"g_hier[{tau}]"for tau in range(1, p + 1)]
-        params = (["sigma_hier", "nu_g", "nu_sigma", "lambda"]
-                  + g_params)
-
-        g_params_tex = [f"$\\bar{{\\Gamma}}_{{{tau}}}$"
-                        for tau in range(1, p + 1)]
-        names = (["$\\bar{\\sigma}^2$", "$\\mathrm{log}_{10}(\\nu_\\Gamma)$",
-                  "$\\mathrm{log}_{10}(\\nu_\\sigma)$",
-                  "$\\bar{\\lambda}$"]
-                 + g_params_tex)
-        rename = {frm: to for frm, to in zip(params, names)}
-
-        param_df.loc[:, "sigma_hier"] =\
-            param_df.loc[:, "sigma_hier"]**2
-        param_df.loc[:, "nu_g"] = np.log10(param_df.loc[:, "nu_g"])
-        param_df.loc[:, "nu_sigma"] = np.log10(param_df.loc[:, "nu_sigma"])
-
-        param_df = param_df.loc[:, params]\
-            .rename(rename, axis=1)
-        ax.set_xticklabels(labels=ax.get_xticklabels(), rotation=300)
-        ax.set_title(f"Hierarchical Parameter Posteriors")
-
-        sns.boxplot(
-            data=param_df.melt(
-                value_name="Posterior Samples",
-                var_name="Parameter"),
-            x="Parameter", y="Posterior Samples", ax=ax)
-        return
-
-    def plot_roots(self, param_df, ax, b_proto="b[{tau}]",
-                   title="System Poles", tau_range=None):
-        """
-        Plot the poles of an AR(p) model.
-
-        param_df should contain "b".
-        """
+    def _get_b(self, param_df, b_proto, tau_range):
         param_df = pd.DataFrame(param_df)  # Copy the input
 
         if tau_range is None:
@@ -235,6 +200,16 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         b_params = [b_proto.format(tau=tau) for tau in tau_range]
 
         b = param_df.loc[:, b_params].to_numpy()
+        return b
+
+    def plot_roots(self, param_df, ax, b_proto="b[{tau}]",
+                   title="System Poles", tau_range=None):
+        """
+        Plot the poles of an AR(p) model.
+
+        param_df should contain "b".
+        """
+        b = self._get_b(param_df, b_proto, tau_range)
         roots = _compute_roots(b)
 
         # Z-plot
@@ -246,6 +221,50 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         ax.set_title(title)
         ax.set_xlabel("Re")
         ax.set_ylabel("Im")
+        return ax
+
+    def plot_spectrum(self, param_df, ax=None, b_proto="b[{tau}]",
+                      gain="sigma", tau_range=None, show=False,
+                      title="$AR(p)$ Frequency Response"):
+        if ax is None:
+            fig, ax = plt.subplots(2, 1, sharex=True)
+
+        b = self._get_b(param_df, b_proto, tau_range)
+
+        # TODO: Is this correct?  The gain just being sigma?
+        K = param_df.loc[:, gain].to_numpy()
+        num = K
+        den = _reorder_Bz(b)
+
+        w = np.linspace(0, np.pi, 512)
+        h = []
+
+        # TODO: Is my ordering of b correct?
+        for i in range(len(K)):
+            h.append(freqz(b=num[i], a=den[i], worN=w)[1])
+            
+        H = 20 * np.log10(np.abs(h))
+        angle = np.unwrap(np.angle(h))
+
+        ax[0].plot(w, H.T, linewidth=0.5, color="#CC6677", alpha=0.1)
+        ax[0].plot(w, np.mean(H, axis=0),
+                   linewidth=3.0, color="#882255", alpha=0.8)
+        ax[1].plot(w, angle.T, linewidth=0.5, color="#CC6677", alpha=0.1)
+        ax[1].plot(w, np.mean(angle, axis=0),
+                   linewidth=3.0, color="#882255", alpha=0.8)
+
+        ax[0].set_title("$20\\mathrm{log}_{10}|H(j\\omega)|$")
+        ax[0].set_ylabel("Gain [dB]")
+
+        ax[1].set_title("$\\angle H(j\\omega)$")
+        ax[1].set_xlabel("Frequency [Rad / sample]")
+        ax[1].set_ylabel("Angle [Rad]")
+
+        fig.suptitle(title)
+
+        if show:
+            plt.show()
+
         return ax
 
 
@@ -301,7 +320,7 @@ class BayesAR(BaseAR):
 
         scalar_params = [("sigma", "$\\sigma^2$"),
                          ("mu", "$\\mu$"), ("r", "$r$")]
-        vector_params = [("g[{tau}]", "$\Gamma_{tau}$")]
+        vector_params = [("g[{tau}]", "$\Gamma_{{{tau}}}$")]
         modifier_map = {"sigma": lambda x: x**2}
 
         super().plot_posterior_basic(param_df, ax=ax[0],
@@ -310,6 +329,19 @@ class BayesAR(BaseAR):
                                      modifier_map=modifier_map)
         super().plot_roots(param_df, ax=ax[1], b_proto="b[{tau}]")
 
+        if show:
+            plt.show()
+        return ax
+
+    def plot_spectrum(self, ax=None, show=False):
+        if ax is not None:
+            raise NotImplementedError
+
+        param_df = self._fit_results.to_dataframe(["b", "sigma"])
+        fig, axes = plt.subplots(1, 2)
+        ax = axes.ravel()
+
+        super().plot_spectrum(param_df, b_proto="b[{tau}]", gain="sigma")
         if show:
             plt.show()
         return ax
@@ -373,7 +405,7 @@ class BayesRepAR(BaseAR):
                                                        "mu", "r"])
             scalar_params = [(f"sigma[{k}]", "$\\sigma^2$"),
                              (f"mu[{k}]", "$\\mu$"), (f"r[{k}]", "$r$")]
-            vector_params = [(f"g[{k},{{tau}}]", "$\\Gamma_{tau}$")]
+            vector_params = [(f"g[{k},{{tau}}]", "$\\Gamma_{{{tau}}}$")]
             modifier_map = {f"sigma[{k}]": lambda x: x**2}
 
             super().plot_roots(param_df, ax=ax[1], b_proto=f"b[{k},{{tau}}]")
@@ -403,6 +435,25 @@ class BayesRepAR(BaseAR):
 
         if show:
             plt.show()
+        return ax
+
+    def plot_spectrum(self, k=None, ax=None, show=False):
+        if ax is not None:
+            raise NotImplementedError
+
+        if k is not None:
+            param_df = self._fit_results.to_dataframe(["b", "sigma"])
+            b_proto = f"b[{k},{{tau}}]"
+            gain = f"sigma[{k}]"
+            title = f"$AR(p)$ Spectrum for $k = {k}$"
+        else:
+            param_df = self._fit_results.to_dataframe(["b_hier", "sigma_hier"])
+            b_proto = "b_hier[{tau}]"
+            gain = "sigma_hier"
+            title = "Hierarchical $AR(p)$ Spectrum"
+
+        ax = super().plot_spectrum(param_df, b_proto=b_proto, gain=gain,
+                                   title=title, ax=ax)
         return ax
 
 
@@ -498,7 +549,7 @@ class BayesMixtureAR(BaseAR):
 
         scalar_params = [("sigma", "$\\sigma^2$"),
                          ("mu", "$\\mu$"), ("r", "$r$")]
-        vector_params = [("g[{tau}]", "$\\Gamma_{tau}$"),
+        vector_params = [("g[{tau}]", "$\\Gamma_{{{tau}}}$"),
                          ("pz[{tau}]", FormatHack1())]
         modifier_map = {"sigma": lambda x: x**2}
 
