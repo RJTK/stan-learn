@@ -43,7 +43,7 @@ model {
   vector[T] trend;
   vector[p] trend0;
 
-  // Noise level in the signal
+  // Noise level in the signal (i.e. eps_p)
   sigma ~ inv_gamma(1, 1);
 
   // Uniform prior on reflection coefficients
