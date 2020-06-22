@@ -51,11 +51,10 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         self.stan_model, self.predict_model = self._load_compiled_models()
 
         self.stan_fitting_kwargs = {"chains": n_chains,
-                                    "iter": samples_per_chain + warmup,
-                                    "warmup": warmup, "init": "random",
-                                    "init_r": 1.0, "n_jobs": n_jobs,
-                                    "control": {"metric": "diag_e",
-                                                "adapt_delta": 0.8}}
+                                    "iter_sampling": samples_per_chain,
+                                    "iter_warmup": warmup, "inits": 0,
+                                    "metric": "diag_e",
+                                    "adapt_delta": 0.8}
 
         self._fit_results = None
         self.normalize = normalize
@@ -75,7 +74,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
             data["y"] = (data["y"] - self._mean) / self._scale
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
-        self._fit_results = self.stan_model.sampling(**fit_kwargs)
+        self._fit_results = self.stan_model.sample(**fit_kwargs)
         print(self._fit_results.stansummary(pars))
         return
 
@@ -284,7 +283,7 @@ class BayesAR(BaseAR):
         params:
             X (n_examples, m_features): Signal to fit, T x 1
             sample_weight: NotImplemented
-            stan_fitting_kwargs: To be passed to pystan's .sampling method
+            stan_fitting_kwargs: To be passed to cmdstanpy's .sampling method
         """
         if sample_weight is not None:
             raise NotImplementedError("sampling weighting is not implemented.")
@@ -363,7 +362,7 @@ class BayesRepAR(BaseAR):
         params:
             X (n_examples, m_features): Signal to fit, T x K
             sample_weight: NotImplemented
-            stan_fitting_kwargs: To be passed to pystan's .sampling method
+            stan_fitting_kwargs: To be passed to cmdstanpy's .sampling method
         """
         if sample_weight is not None:
             raise NotImplementedError("sample weighting is not implemented.")
@@ -487,7 +486,7 @@ class BayesMixtureAR(BaseAR):
         params:
             X (n_examples, m_features): Signal to fit, T x 1
             sample_weight: NotImplemented
-            stan_fitting_kwargs: To be passed to pystan's .sampling method
+            stan_fitting_kwargs: To be passed to cmdstanpy's .sampling method
         """
         if sample_weight is not None:
             raise NotImplementedError("sampling weighting is not implemented.")

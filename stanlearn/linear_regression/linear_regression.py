@@ -46,11 +46,10 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
         self.stan_model, self.predict_model = self._load_compiled_models()
 
         self.stan_fitting_kwargs = {"chains": n_chains,
-                                    "iter": samples_per_chain + warmup,
-                                    "warmup": warmup, "init": "random",
-                                    "init_r": 1.0, "n_jobs": n_jobs,
-                                    "control": {"metric": "diag_e",
-                                                "adapt_delta": 0.9}}
+                                    "iter_sampling": samples_per_chain,
+                                    "iter_warmup": warmup, "inits": 1,
+                                    "metric": "diag_e",
+                                    "adapt_delta": 0.8}
 
         self._fit_results = None
         self.normalize = normalize
@@ -60,6 +59,20 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
             self._y_ss = StandardScaler()
             self._X_ss = StandardScaler()
         return
+
+    def get_results(self, params=None, results_obj=None):
+        if results_obj is None:
+            results_obj = self._fit_results
+
+        param_df = results_obj.get_drawset(params)
+        param_df = param_df.rename({param: "[".join(param.split(".")) + "]"
+                                    for param in param_df.columns
+                                    if "." in param}, axis="columns")
+        return param_df
+
+    def extract_ary(self, param, results_obj=None):
+        param_df = self.get_results([param], results_obj)
+        return param_df[param].to_numpy()
 
     def _posterior(self, X, **stan_fitting_kwargs):
         N, M = X.shape
@@ -78,14 +91,14 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         data = {"N": N, "M": M, "K": K, "beta": beta[::ss], "y0": y0[::ss],
                 "sigma": sigma[::ss], "X": X, "nu": nu[::ss]}
-        fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
-        fit_kwargs["iter"] = 1
-        fit_kwargs["chains"] = 1
+        fit_kwargs = stan_fitting_kwargs
+        fit_kwargs["iter_sampling"] = 1
+        fit_kwargs["data"] = data
+        fit_kwargs["fixed_param"] = True
 
-        predictions = self.predict_model.sampling(**fit_kwargs,
-                                                  algorithm="Fixed_param")
-        y_samples = predictions.extract("y")["y"][0, ...]
-        y_hat = predictions.extract("y_hat")["y_hat"].ravel()
+        predictions = self.predict_model.sample(**fit_kwargs)
+        y_samples = self.extract_ary("y", predictions)[0, ...]
+        y_hat = self.extract_ary("y_hat", predictions).ravel()
 
         if self.normalize:
             y_samples = np.vstack([self._y_ss.inverse_transform(y_s)
@@ -96,7 +109,8 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
     def _get_param_posterior(self):
         if self._fit_results is None:
             raise NotFittedError("Model isn't fit!")
-        df = self._fit_results.to_dataframe()
+        df = self.get_results()
+
         M = sum(c[:4] == "beta" for c in df.columns)
 
         y0 = df.loc[:, "y0"].to_numpy()
@@ -128,7 +142,10 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
         data = {"N": N, "M": M, "X": X, "y": y}
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
-        self._fit_results = self.stan_model.sampling(**fit_kwargs)
+        self._fit_results = self.stan_model.sample(**fit_kwargs)
+        print(self._fit_results.summary())
+        print(self._fit_results.diagnose())
+        print(self._fit_results)
         return
 
     def predict(self, X, ret_posterior=False, **stan_fitting_kwargs):
@@ -169,7 +186,7 @@ class BayesLinearRegression(BaseEstimator, RegressorMixin, StanCacheMixin):
         A helper method to plot the posterior parameter distribution.
         Will raise an error if .fit hasn't been called.
         """
-        param_df = self._fit_results.to_dataframe()
+        param_df = self.get_results()
         M = sum([c[:4] == "beta" for c in param_df.columns])
         col_names = (["y0", "sigma", "nu"] +
                      [f"beta[{j}]" for j in range(1, M + 1)])

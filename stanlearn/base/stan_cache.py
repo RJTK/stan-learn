@@ -3,7 +3,8 @@ import pickle
 from hashlib import md5
 from copy import deepcopy
 
-import pystan
+# from pystan import StanModel as StanModel
+from cmdstanpy import CmdStanModel
 
 
 class StanCacheMixin:
@@ -58,8 +59,9 @@ class StanCacheMixin:
     def _compile_model(self, name):
         file_loc = self._get_stan_file_loc(name)
         model_hsh = StanCacheMixin._get_file_hash(file_loc)
-        model = pystan.StanModel(file=file_loc, model_name=name,
-                                 include_paths=self.model_dir)
+        # model = StanModel(file=file_loc, model_name=name,
+        #                   include_paths=self.model_dir)
+        model = CmdStanModel(stan_file=file_loc, model_name=name)
         return model, model_hsh
 
     def _save_compiled_model(self, model, name):
