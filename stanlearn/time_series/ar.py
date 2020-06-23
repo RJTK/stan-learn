@@ -1,5 +1,4 @@
 import os
-from itertools import chain
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -11,9 +10,6 @@ from numpy.polynomial.polynomial import polyroots
 from scipy.signal import freqz
 
 from sklearn.base import RegressorMixin, BaseEstimator
-from sklearn.preprocessing import StandardScaler
-
-import arviz
 
 from stanlearn.base import StanCacheMixin
 
@@ -42,10 +38,9 @@ def _compute_roots(b):
 
 
 # This is basically an abstract base class -- I'm not using formal mechanisms
-class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
+class BaseAR(StanCacheMixin):
     def __init__(self, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True):
-        BaseEstimator.__init__(self)
         StanCacheMixin.__init__(self, MODEL_DIR)
 
         self.stan_model, self.predict_model = self._load_compiled_models()
@@ -75,7 +70,6 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
 
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sample(**fit_kwargs)
-        print(self._fit_results.stansummary(pars))
         return
 
     def get_ppc(self):
@@ -127,7 +121,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         ax.plot(y.ravel(), linewidth=2.0, color="#117733", alpha=0.8,
                 label="y")
         ax.plot(np.mean(y_ppc, axis=0), linewidth=2.0, color="#882255",
-                alpha=0.8, label="y\_ppc")
+                alpha=0.8, label="y\\_ppc")
         ax.plot([], [], linewidth=2, color="#88CCEE", label="trend")
 
         if labels:
@@ -241,7 +235,7 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         # TODO: Is my ordering of b correct?
         for i in range(len(K)):
             h.append(freqz(b=num[i], a=den[i], worN=w)[1])
-            
+
         H = 20 * np.log10(np.abs(h))
         angle = np.unwrap(np.angle(h))
 
@@ -267,9 +261,10 @@ class BaseAR(BaseEstimator, RegressorMixin, StanCacheMixin):
         return ax
 
 
-class BayesAR(BaseAR):
+class BayesAR(BaseAR, BaseEstimator, RegressorMixin):
     def __init__(self, p=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True):
+        BaseEstimator.__init__(self)
         BaseAR.__init__(self, n_jobs=n_jobs, warmup=warmup,
                         samples_per_chain=samples_per_chain,
                         n_chains=4, normalize=True)
@@ -345,10 +340,12 @@ class BayesAR(BaseAR):
         return ax
 
 
-class BayesRepAR(BaseAR):
+class BayesRepAR(BaseAR, BaseEstimator, RegressorMixin):
     def __init__(self, p=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True):
-        BaseAR.__init__(self, n_jobs=n_jobs, warmup=warmup,
+        BaseEstimator.__init__(self)
+        BaseAR.__init__(self,
+                        n_jobs=n_jobs, warmup=warmup,
                         samples_per_chain=samples_per_chain,
                         n_chains=4, normalize=True)
 
@@ -386,7 +383,6 @@ class BayesRepAR(BaseAR):
         if show:
             plt.show()
         return ax
-
 
     def plot_posterior_params(self, k=None, ax=None, show=False):
         """
@@ -457,9 +453,10 @@ class BayesRepAR(BaseAR):
         return ax
 
 
-class BayesMixtureAR(BaseAR):
+class BayesMixtureAR(BaseAR, BaseEstimator, RegressorMixin):
     def __init__(self, p_max=1, n_jobs=-1, warmup=1000, samples_per_chain=1000,
                  n_chains=4, normalize=True, mu_th=None, nu_th=2):
+        BaseEstimator.__init__(self)
         BaseAR.__init__(
             self, n_jobs=n_jobs, warmup=warmup,
             samples_per_chain=samples_per_chain,
@@ -519,7 +516,7 @@ class BayesMixtureAR(BaseAR):
         th = self.get_model_probabilities()
         p_mp = np.argmax(th)  # Most probable order
         return p_mp
-    
+
     def plot_posterior_params(self, ax=None, show=False,
                               p=None):
         """

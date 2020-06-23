@@ -6,6 +6,8 @@ from copy import deepcopy
 # from pystan import StanModel as StanModel
 from cmdstanpy import CmdStanModel
 
+from .stan_sampler import ComStanModel
+
 
 class StanCacheMixin:
     def _get_file_hash(file_loc):
@@ -37,6 +39,8 @@ class StanCacheMixin:
             self._get_name() + "_model")
         predict_model = self._load_compiled_model(
             self._get_name() + "_predict")
+        stan_model = ComStanModel(stan_model)
+        predict_model = ComStanModel(predict_model)
         return stan_model, predict_model
 
     def _load_compiled_model(self, name):

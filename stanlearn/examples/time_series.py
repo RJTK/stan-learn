@@ -1,4 +1,3 @@
-import seaborn
 import os
 import matplotlib.pyplot as plt
 
@@ -18,6 +17,9 @@ try:
     os.mkdir(FIGURE_DIR)
 except FileExistsError:
     pass
+
+# TODO: How do I properly configure which c compiler?
+os.environ["CXX"] = "/usr/bin/g++"
 
 
 def basic_example():
@@ -41,7 +43,7 @@ def basic_example():
     y = y + mu + r * np.arange(T)
 
     ar = BayesAR(normalize=False, p=p, warmup=500, samples_per_chain=500)
-    ar.fit(y)
+    ar.fit(y, show_progress=True, output_dir="./stan_output/")
 
     fig, ax = plt.subplots(1, 1, sharex=True, sharey=True)
     ar.plot_ppc(y, show=False, ax=ax)
@@ -215,7 +217,8 @@ def mixture_example2():
 
     return
 
-def mixture_example2():
+
+def mixture_example3():
     p_max = 5
     T = 1000
     v = 0.25 * np.random.normal(size=T + p_max)
@@ -273,4 +276,4 @@ def mixture_example2():
 
 if __name__ == "__main__":
     basic_example()
-    mixture_example()
+    mixture_example1()

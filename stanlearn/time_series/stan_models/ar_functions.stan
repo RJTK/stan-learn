@@ -1,6 +1,7 @@
 functions {
-  vector step_up_inner(real g, vector b, int k);
   vector step_up(vector g);
+  vector step_up_inner(real g, vector b, int k);
+  matrix chol_factor_g(vector g, real sigma);
   real ar_model_lpdf(vector y, vector y0, vector b, real sigma);
   vector ar_model_rng(vector y, vector y0, vector b, real sigma);
   vector ar_model_forecast(vector y, vector y0, vector b);
@@ -29,8 +30,11 @@ functions {
 
   vector step_up_inner(real g, vector b, int k){
     /*
-     * A single step of the step_up recursion, this is
-     * useful for making use of intermediate results
+     * Step k (k in 1:p - 1) of the step_up recursion, this is
+     * useful for making use of intermediate results.  It
+     * consumes the length k sequence b and the k + 1 reflection
+     * coefficient g to produce the k + 1 sequence b.  i.e. it
+     * uses the model AR(k) and g[k + 1] to produce AR(k + 1).
      */
     vector[k + 1] b_ret;
     for(tau in 1:k)
@@ -71,24 +75,26 @@ functions {
   //   return r_full;
   // }
 
-  // matrix chol_factor_g(vector g, real sigma){
-  //   int p = dims(g)[1];
-  //   vector[p + 1] eps;  // Errors at different modelling orders
-  //   matrix[p + 1, p + 1] E;  // Diag(eps)
-  //   matrix[p + 1, p + 1] B;  // Upper diag matrix of AR coef sequence
+  matrix chol_factor_g(vector g, real sigma){
+    int p = dims(g)[1];
+    vector[p + 1] eps;  // Errors at different modelling orders
+    matrix[p + 1, p + 1] E;  // Diag(eps)
+    matrix[p + 1, p + 1] B;  // Upper diag matrix of AR coef sequence
 
-  //   eps[p + 1] = sigma^2;
-  //   for(tau in 1:p){
-  //     eps[p + 1 - tau] = eps[p + 2 - tau] / (1 - g[p + 1 - tau]^2);
-  //   }
-  //   E = diag_matrix(eps);
+    eps[p + 1] = sigma^2;
+    for(tau in 1:p){
+      eps[p + 1 - tau] = eps[p + 2 - tau] / (1 - g[p + 1 - tau]^2);
+    }
+    E = diag_matrix(sqrt(eps));  // The "D" in an LDL^T factor of R
 
-  //   B = add_diag(B, 1);  // ones on the diagonal
-  //   for(k in 1:p){
-  //     B[:k, k + 1] = -step_up()
-  //   }
-    
-  // }
+    // This produces an upper triangular matrix
+    B = add_diag(B, 1.0);  // ones on the diagonal
+    B[1, 2] = g[1];  // k = 1
+    for(k in 2:p){
+      B[:k, k + 1] = reverse(step_up_inner(g[k], B[:k - 1, k], k - 1));
+    }
+    return B \ E;  // This is the cholesky factor L of R = symtoep(r).
+  }
 
   real ar_model_lpdf(vector y, vector y0, vector b, real sigma){
     int T = dims(y)[1];
