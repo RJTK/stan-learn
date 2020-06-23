@@ -5,6 +5,8 @@ functions {
   real ar_model_lpdf(vector y, vector y0, vector b, real sigma);
   vector ar_model_rng(vector y, vector y0, vector b, real sigma);
   vector ar_model_forecast(vector y, vector y0, vector b);
+  real ar_initial_values_lpdf(vector y0, real y1, vector g, real sigma);
+  vector ar_initial_values_rng(real y1, vector g, real sigma);
   matrix make_toeplitz(vector y, vector y0);
   vector reverse(vector x);
 
@@ -43,43 +45,38 @@ functions {
     return b_ret;
   }
 
-  // vector inverse_levinson_durbin(vector g, real sigma){
-  //   /* Computes the autocorrelation sequence from the reflection
-  //    * coefficients and the noise level.  This can / should be
-  //    * combined with the step_up recursion to calculate both
-  //    * the autocorrelation and the AR coefficients from (gamma, sigma).
-  //    */
-  //   int p = dims(g)[1];
-  //   real r0;
-  //   vector[p] r = rep_vector(0, p);
-  //   vector[p + 1] r_full;
-  //   vector[p] b;
-  //   vector[p] b_cpy;
+  vector inverse_levinson_durbin(vector g, real sigma){
+    /* Computes the autocorrelation sequence from the reflection
+     * coefficients and the noise level.  This can / should be
+     * combined with the step_up recursion to calculate both
+     * the autocorrelation and the AR coefficients from (gamma, sigma).
+     */
+    int p = dims(g)[1];
+    vector[p + 1] r_full = rep_vector(0, p + 1);
+    vector[p] b;
 
-  //   r0 = sigma^2;
-  //   for(tau in 1:p)
-  //     r0 /= (1 - g[tau]^2);
+    b[1] = g[1];
 
-  //   for(k in 1:p - 1){
-  //     b_cpy = b;
-  //     for(tau in 1:k){
-  //       b[tau] = b_cpy[tau] + g[k + 1] * b_cpy[k - tau + 1];
-  //     }
+    r_full[1] = sigma^2;
+    for(tau in 1:p)
+      r_full[1] /= (1 - g[tau]^2);
+    r_full[2] = -b[1] * r_full[1];
 
-  //     b[k + 1] = g[k + 1];
-  //     for(tau in 1:k + 1)
-  //       r[k + 1] += -b[tau] * r[k + 1 - tau];
-  //   }
-  //   r_full[1] = r0;
-  //   r_full[2:] = r;
-  //   return r_full;
-  // }
+    for(k in 1:p - 1){
+      b[:k + 1] = step_up_inner(g[k + 1], b, k);
+
+      for(tau in 1:k + 1)
+        r_full[k + 2] += -b[tau] * r_full[k + 2 - tau];
+    }
+    return r_full;
+  }
 
   matrix chol_factor_g(vector g, real sigma){
     int p = dims(g)[1];
     vector[p + 1] eps;  // Errors at different modelling orders
     matrix[p + 1, p + 1] E;  // Diag(eps)
-    matrix[p + 1, p + 1] B;  // Upper diag matrix of AR coef sequence
+    // lower diag matrix of AR coef sequence
+    matrix[p + 1, p + 1] B = rep_matrix(0, p + 1, p + 1);
 
     eps[p + 1] = sigma^2;
     for(tau in 1:p){
@@ -91,9 +88,12 @@ functions {
     B = add_diag(B, 1.0);  // ones on the diagonal
     B[1, 2] = g[1];  // k = 1
     for(k in 2:p){
-      B[:k, k + 1] = reverse(step_up_inner(g[k], B[:k - 1, k], k - 1));
+      B[:k, k + 1] = reverse(
+        step_up_inner(g[k], reverse(B[:k - 1, k]), k - 1));
     }
-    return B \ E;  // This is the cholesky factor L of R = symtoep(r).
+    // This is the cholesky factor L of R = symtoep(r).
+    return mdivide_left_tri_low(B', E);
+    // return B \ E;
   }
 
   real ar_model_lpdf(vector y, vector y0, vector b, real sigma){
@@ -128,6 +128,19 @@ functions {
       y_hat[t] = dot_product(b_rev, y_full[t:t + p - 1]);
     }
     return y_hat;
+  }
+
+  real ar_initial_values_lpdf(vector y0, real y1, vector g, real sigma){
+    int p = dims(g)[1];
+    matrix[p + 1, p + 1] L = chol_factor_g(g, sigma);
+    return multi_normal_cholesky_lpdf(append_row(y0, y1) |
+                                      rep_vector(0, p + 1), L);
+  }
+
+  vector ar_initial_values_rng(real y1, vector g, real sigma){
+    int p = dims(g)[1];
+    matrix[p + 1, p + 1] L = chol_factor_g(g, sigma);
+    return  multi_normal_cholesky_rng(rep_vector(0, p + 1), L);
   }
 
   matrix make_toeplitz(vector y, vector y0){

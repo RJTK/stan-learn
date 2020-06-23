@@ -67,8 +67,8 @@ def basic_example():
 def ar_rep_example():
     # Multiple repetitions
     p = 3  # Misspecify p
-    T = 15
-    K = 20
+    T = 150
+    K = 5
     sigma = 0.5 + np.random.uniform(size=K)**2
     v = sigma[None, :] * np.random.normal(size=(T, K))
     y = np.array(v)

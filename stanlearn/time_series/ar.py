@@ -68,6 +68,9 @@ class BaseAR(StanCacheMixin):
             self._scale = np.std(data["y"])
             data["y"] = (data["y"] - self._mean) / self._scale
 
+        if "show_progress" not in stan_fitting_kwargs:
+            stan_fitting_kwargs["show_progress"] = True
+
         fit_kwargs = self._setup_predict_kwargs(data, stan_fitting_kwargs)
         self._fit_results = self.stan_model.sample(**fit_kwargs)
         return

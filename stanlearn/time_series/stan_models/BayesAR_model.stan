@@ -12,13 +12,16 @@ data {
 
 transformed data {
   vector[T] t;  // "time"
-  vector[p + 1] t0;  // Time before t=0
+  vector[p] t0;  // Time before t=0
   for(i in 1:T)
     t[i] = i;
-  for(i in 1:p + 1)
+  for(i in 1:p)
     t0[i] = -p + i;
+
   t = t / T;  // Normalize to between [1 / T, 1]
   t0 = t0 / T;  // Normalize to between [-(p - 1) / T, 1 / T]
+  // print(t);
+  // print(t0);
 }
 
 parameters {
@@ -41,7 +44,8 @@ model {
   vector[p] alpha;  // Params for beta prior on g
   vector[p] beta;
   vector[T] trend;
-  vector[p + 1] trend0;
+  vector[p] trend0;
+  vector[p + 1] r_full;
   matrix[p + 1, p + 1] L;
 
   // Noise level in the signal (i.e. eps_p)
@@ -56,13 +60,15 @@ model {
 
   trend = mu + r * t;
   trend0 = mu + r * t0;
+  // print(mu);
+  // print(r);
+  // print(trend0);
 
   // Sample y0 s.t. we have stationarity
-  // L is the Chol-factor of symtoep(r), r = [r(0)..r(p)] the autocorr seq
-  // L = chol_factor_g(g, sigma);
-  // target += multi_normal_cholesky_lpdf(append_row(y0, y[1]) | trend0, L);
+  y0 - trend0 ~ ar_initial_values(y[1] - trend[1], g, sigma);
 
-  y0 ~ normal(0, 1);
+  // y0 ~ normal(trend0, 1);
+  // y0 ~ normal(0, 1);
 
   // The actual AR model
   y - trend ~ ar_model(y0, b, sigma);
@@ -72,7 +78,6 @@ generated quantities {
   vector[T] y_ppc;
   real y_ll;
   vector[T] trend;
-  vector[p] trend0;
 
   trend = mu + r * t;
 
