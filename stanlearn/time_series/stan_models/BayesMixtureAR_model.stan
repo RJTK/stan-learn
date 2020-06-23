@@ -27,9 +27,9 @@ transformed data {
   for(i in 1:T)
     t[i] = i;
   for(i in 1:p_max)
-    t0[i] = -p_max + i;
+    t0[i] = i;
   t = t / T;  // Normalize to between [1/T, 1]
-  t0 = t0 / T;  // [-(p_max - 1) / T, 0]
+  t0 = (t0 - p_max) / T;  // [-(p_max - 1) / T, 0]
 }
 
 parameters {
@@ -89,6 +89,7 @@ model {
 
   // Initial values
   y0 ~ normal(trend0, sigma);
+  // y0 - trend0 ~ ar_initial_values(y[1] - trend[1], g, sigma);
 
   // Mixture AR(p), including "AR(0)" (pure noise)
   target += log_sum_exp(lpdfs);

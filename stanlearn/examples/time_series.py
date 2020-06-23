@@ -61,6 +61,7 @@ def basic_example():
     fig.show()
 
     ax = ar.plot_ll_trace(show=True)
+
     return
 
 
@@ -120,6 +121,7 @@ def ar_rep_example():
     plt.show()
 
     ar.plot_ll_trace(show=True)
+
     return
 
 

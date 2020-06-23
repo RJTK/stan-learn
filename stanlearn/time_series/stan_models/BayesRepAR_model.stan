@@ -18,15 +18,14 @@ transformed data {
   for(i in 1:T)
     t[i] = i;
   for(i in 1:p)
-    t0[i] = i - p;
+    t0[i] = i;
+
   t = t / T;  // Normalize to between [1/T, 1]
-  t0 = t0 / T;  // Normalize to [-(p - 1)/T, 0]
+  t0 = (t0 - p) / T;  // Normalize to [-(p - 1)/T, 0]
 }
 
 parameters {
   // Trend term
-  // real mu_hier;  // Hierarchy for trend params
-  // real r_hier;
   real<lower=0> lambda;  // Magnitude for r, mu
   real mu_nc[K];  // Mean value NC-param
   real r_nc[K];  // Linear trend coefficient NC-param
@@ -75,22 +74,22 @@ model {
     g_beta[k] ~ beta(alpha, beta);  // in (0, 1)
 
   // trend parameters -- non-centered hierarchical parameterization
-  // r_hier ~ normal(0, 1);
-  // mu_hier ~ normal(0, 1);
   lambda ~ exponential(1);
   r_nc ~ normal(0, 1);
   mu_nc ~ normal(0, 1);
 
   for(k in 1:K){
+    // Linear trend terms
     trend[k] = mu[k] + r[k] * t;
     trend0[k] = mu[k] + r[k] * t0;
-  }
 
-  for(k in 1:K)  // TODO: sample from stationary
-    y0[k] ~ normal(trend0[k], sigma[k]);
+    // Initial samples from a stationary distribution
+    y0[k] - trend0[k] ~ ar_initial_values(y[k, 1] - trend[k, 1],
+                                          g[k], sigma[k]);
 
-  for(k in 1:K)
+    // The actual AR(p) model
     y[k] - trend[k] ~ ar_model(y0[k], b[k], sigma[k]);
+  }
 }
 
 generated quantities {
@@ -99,18 +98,16 @@ generated quantities {
   vector[T] y_ppc[K];
   vector[T] trend[K];
   vector[p] trend0[K];
-  real y_ll[K];
-
-  for(k in 1:K){
-    trend[k] = mu[k] + r[k] * t;
-    trend0[k] = mu[k] + r[k] * t0;
-  }
+  real y_ll = 0;
 
   g_hier = 2 * mu_beta - 1;
   b_hier = step_up(g_hier);  // Compute the actual AR coefficients
 
   for(k in 1:K){
-    y_ll[k] = ar_model_lpdf(y[k] - trend[k] | y0[k], b[k], sigma[k]);
+    trend[k] = mu[k] + r[k] * t;
+    trend0[k] = mu[k] + r[k] * t0;
+
+    y_ll += ar_model_lpdf(y[k] - trend[k] | y0[k], b[k], sigma[k]);
     y_ppc[k] = trend[k] + ar_model_rng(y[k], y0[k], b[k], sigma[k]);
   }
 }
