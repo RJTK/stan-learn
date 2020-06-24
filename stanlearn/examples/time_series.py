@@ -167,10 +167,11 @@ def mixture_example1():
 
     return
 
+
 def mixture_example2():
     p_max = 5
     T = 1000
-    v = 0.25 * np.random.normal(size=T + p_max)
+    v = 0.25 * np.random.normal(size=T)
     y = np.array(v)
 
     mu = -0.7
@@ -187,7 +188,6 @@ def mixture_example2():
     for t in range(T):
         y[t] = b1 * y[t - 1] + b2 * y[t - 2] + b3 * y[t - 3] + v[t]
     y = y + mu + r * np.arange(T)
-    y = y[p_max:].reshape(-1, 1)
 
     mu_th = np.ones(p_max + 1)  # / np.arange(1, p_max + 2)**(1./3)
     mu_th /= sum(mu_th)
@@ -202,10 +202,7 @@ def mixture_example2():
     # fig.savefig(FIGURE_DIR + "mixture_time_series_ppc.pdf")
     plt.show()
 
-    fig, axes = plt.subplots(1, 2)
-    axes = axes.ravel()
-    ar.plot_posterior_params(show=False, ax=axes[0])
-    ar.plot_poles(p=None, show=False, ax=axes[1])
+    axes = ar.plot_posterior_params(show=False)
     axes[1].scatter(true_roots.real, true_roots.imag, marker="o",
                     label="True Poles", color="#117733")
     axes[1].legend(loc="upper right")

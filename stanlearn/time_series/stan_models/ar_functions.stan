@@ -133,7 +133,10 @@ functions {
   real ar_initial_values_lpdf(vector y0, real y1, vector g, real sigma){
     int p = dims(g)[1];
     matrix[p + 1, p + 1] L = chol_factor_g(g, sigma);
-    return multi_normal_cholesky_lpdf(append_row(y0, y1) |
+    // (y[1], y0[p], y0[p - 1], ..., y0[1]) is the correct ordering
+    // since y0[1] is the farthest back in time and y0[p] is the
+    // sample just before y[1].
+    return multi_normal_cholesky_lpdf(reverse(append_row(y0, y1)) |
                                       rep_vector(0, p + 1), L);
   }
 

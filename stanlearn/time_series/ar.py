@@ -115,12 +115,15 @@ class BaseAR(StanCacheMixin):
             plt.show()
         return ax
 
-    def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False, labels=True):
+    def plot_ppc(self, y, y_ppc, y_trend, ax=None, show=False, labels=True,
+                 max_paths=500):
         if ax is None:
             fig, ax = plt.subplots(1, 1)
 
-        ax.plot(y_trend.T, linewidth=0.5, color="#88CCEE", alpha=0.1)
-        ax.plot(y_ppc.T, linewidth=0.5, color="#CC6677", alpha=0.1)
+        ax.plot(y_trend[:max_paths].T, linewidth=0.5,
+                color="#88CCEE", alpha=0.1)
+        ax.plot(y_ppc[:max_paths].T, linewidth=0.5,
+                color="#CC6677", alpha=0.1)
         ax.plot(y.ravel(), linewidth=2.0, color="#117733", alpha=0.8,
                 label="y")
         ax.plot(np.mean(y_ppc, axis=0), linewidth=2.0, color="#882255",
@@ -539,18 +542,17 @@ class BayesMixtureAR(BaseAR, BaseEstimator, RegressorMixin):
 
         param_df = self._fit_results.to_dataframe(["b", "g", "sigma",
                                                    "mu", "r", "pz"])
+        param_df.rename({"pz[{}]".format(self.p + 1): "pz[0]"},
+                        axis=1, inplace=True)
 
         fig.suptitle("Mixture of $\\Gamma$-parameterized AR(p) models")
 
-        # Need to be able to do arithmetic...
-        class FormatHack1:
-            def format(self, tau=0):
-                return "$p_{tau}$".format(tau=tau - 1)
-
         scalar_params = [("sigma", "$\\sigma^2$"),
-                         ("mu", "$\\mu$"), ("r", "$r$")]
-        vector_params = [("g[{tau}]", "$\\Gamma_{{{tau}}}$"),
-                         ("pz[{tau}]", FormatHack1())]
+                         ("mu", "$\\mu$"), ("r", "$r$"),
+                         ("pz[0]", "$p_0$")]
+        vector_params = [("pz[{tau}]", "$p_{tau}$"),
+                         ("g[{tau}]", "$\\Gamma_{{{tau}}}$")]
+
         modifier_map = {"sigma": lambda x: x**2}
 
         super().plot_posterior_basic(
